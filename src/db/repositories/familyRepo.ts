@@ -7,21 +7,51 @@ export interface FamilyMember {
   relationship: string | null;
   age: number | null;
   notes: string | null;
+  date_of_birth: string | null;
+  interests: string | null;
+  dietary: string | null;
+  allergies: string | null;
+  school_or_work: string | null;
+  medical_notes: string | null;
   created_at: string;
+}
+
+export interface FamilyMemberOpts {
+  relationship?: string;
+  age?: number;
+  notes?: string;
+  date_of_birth?: string;
+  interests?: string;
+  dietary?: string;
+  allergies?: string;
+  school_or_work?: string;
+  medical_notes?: string;
 }
 
 export function addFamilyMember(
   userId: number,
   name: string,
-  opts?: { relationship?: string; age?: number; notes?: string }
+  opts?: FamilyMemberOpts
 ): FamilyMember {
   const db = getDatabase();
   const result = db
     .prepare(
-      `INSERT INTO family_members (user_id, name, relationship, age, notes)
-       VALUES (?, ?, ?, ?, ?)`
+      `INSERT INTO family_members (user_id, name, relationship, age, notes, date_of_birth, interests, dietary, allergies, school_or_work, medical_notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(userId, name, opts?.relationship ?? null, opts?.age ?? null, opts?.notes ?? null);
+    .run(
+      userId,
+      name,
+      opts?.relationship ?? null,
+      opts?.age ?? null,
+      opts?.notes ?? null,
+      opts?.date_of_birth ?? null,
+      opts?.interests ?? null,
+      opts?.dietary ?? null,
+      opts?.allergies ?? null,
+      opts?.school_or_work ?? null,
+      opts?.medical_notes ?? null
+    );
 
   return db
     .prepare("SELECT * FROM family_members WHERE id = ?")
@@ -38,27 +68,22 @@ export function listFamilyMembers(userId: number): FamilyMember[] {
 export function updateFamilyMember(
   memberId: number,
   userId: number,
-  updates: { name?: string; relationship?: string; age?: number; notes?: string }
+  updates: FamilyMemberOpts & { name?: string }
 ): boolean {
   const db = getDatabase();
   const sets: string[] = [];
   const params: unknown[] = [];
 
-  if (updates.name !== undefined) {
-    sets.push("name = ?");
-    params.push(updates.name);
-  }
-  if (updates.relationship !== undefined) {
-    sets.push("relationship = ?");
-    params.push(updates.relationship);
-  }
-  if (updates.age !== undefined) {
-    sets.push("age = ?");
-    params.push(updates.age);
-  }
-  if (updates.notes !== undefined) {
-    sets.push("notes = ?");
-    params.push(updates.notes);
+  const fields = [
+    "name", "relationship", "age", "notes", "date_of_birth",
+    "interests", "dietary", "allergies", "school_or_work", "medical_notes",
+  ] as const;
+
+  for (const field of fields) {
+    if ((updates as Record<string, unknown>)[field] !== undefined) {
+      sets.push(`${field} = ?`);
+      params.push((updates as Record<string, unknown>)[field]);
+    }
   }
 
   if (sets.length === 0) return false;

@@ -1,5 +1,5 @@
 import Database from "better-sqlite3";
-import { readFileSync, existsSync, mkdirSync } from "fs";
+import { readFileSync, readdirSync, existsSync, mkdirSync } from "fs";
 import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { getConfig } from "../config.js";
@@ -41,22 +41,23 @@ function runMigrations(db: Database.Database) {
   `);
 
   const migrationsDir = resolve(__dirname, "migrations");
-  const migrationFile = resolve(migrationsDir, "001_initial.sql");
 
-  if (!existsSync(migrationFile)) {
-    log.warn("Migration file not found: 001_initial.sql");
-    return;
-  }
+  const files = readdirSync(migrationsDir)
+    .filter((f) => f.endsWith(".sql"))
+    .sort();
 
-  const applied = db
-    .prepare("SELECT name FROM _migrations WHERE name = ?")
-    .get("001_initial") as { name: string } | undefined;
+  for (const file of files) {
+    const name = file.replace(/\.sql$/, "");
+    const applied = db
+      .prepare("SELECT name FROM _migrations WHERE name = ?")
+      .get(name) as { name: string } | undefined;
 
-  if (!applied) {
-    const sql = readFileSync(migrationFile, "utf-8");
-    db.exec(sql);
-    db.prepare("INSERT INTO _migrations (name) VALUES (?)").run("001_initial");
-    log.info("Applied migration: 001_initial");
+    if (!applied) {
+      const sql = readFileSync(resolve(migrationsDir, file), "utf-8");
+      db.exec(sql);
+      db.prepare("INSERT INTO _migrations (name) VALUES (?)").run(name);
+      log.info(`Applied migration: ${name}`);
+    }
   }
 }
 

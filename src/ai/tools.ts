@@ -285,28 +285,60 @@ export function createTools(userId: number): Tool[] {
             description: "Relationship (spouse, child, parent, etc.)",
           },
           age: { type: "number", description: "Age" },
-          notes: { type: "string", description: "Any notes about this person" },
+          date_of_birth: {
+            type: "string",
+            description: "Date of birth in YYYY-MM-DD format",
+          },
+          interests: {
+            type: "string",
+            description: "Comma-separated interests and hobbies (e.g. 'soccer, lego, dinosaurs')",
+          },
+          dietary: {
+            type: "string",
+            description: "Dietary preferences or requirements (e.g. 'vegetarian', 'no dairy')",
+          },
+          allergies: {
+            type: "string",
+            description: "Known allergies (e.g. 'peanuts, penicillin')",
+          },
+          school_or_work: {
+            type: "string",
+            description: "School, childcare, or workplace name",
+          },
+          medical_notes: {
+            type: "string",
+            description: "Relevant medical info (e.g. 'asthma - uses blue inhaler')",
+          },
+          notes: { type: "string", description: "Any other notes about this person" },
         },
         required: ["action", "name"],
       },
       handler: async (args: unknown) => {
-        const { action, name, relationship, age, notes } = args as {
+        const { action, name, relationship, age, notes, date_of_birth, interests, dietary, allergies, school_or_work, medical_notes } = args as {
           action: "add" | "update" | "remove";
           name: string;
           relationship?: string;
           age?: number;
           notes?: string;
+          date_of_birth?: string;
+          interests?: string;
+          dietary?: string;
+          allergies?: string;
+          school_or_work?: string;
+          medical_notes?: string;
         };
 
+        const opts = { relationship, age, notes, date_of_birth, interests, dietary, allergies, school_or_work, medical_notes };
+
         if (action === "add") {
-          const member = addFamilyMember(userId, name, { relationship, age, notes });
+          const member = addFamilyMember(userId, name, opts);
           return `Added ${name}${relationship ? ` (${relationship})` : ""}${age ? `, age ${age}` : ""} to your family. ID: ${member.id}`;
         }
 
         if (action === "update") {
           const existing = findFamilyMemberByName(userId, name);
           if (!existing) return `Could not find family member "${name}".`;
-          updateFamilyMember(existing.id, userId, { relationship, age, notes });
+          updateFamilyMember(existing.id, userId, opts);
           return `Updated ${name}'s info.`;
         }
 
@@ -341,7 +373,13 @@ export function createTools(userId: number): Tool[] {
         const family = listFamilyMembers(userId);
         const familyInfo =
           family.length > 0
-            ? `Family: ${family.map((f) => `${f.name} (${f.relationship ?? "member"}${f.age ? `, ${f.age}` : ""})`).join(", ")}`
+            ? `Family: ${family.map((f) => {
+                const parts = [`${f.name} (${f.relationship ?? "member"}${f.age ? `, ${f.age}` : ""})`];
+                if (f.interests) parts.push(`interests: ${f.interests}`);
+                if (f.dietary) parts.push(`dietary: ${f.dietary}`);
+                if (f.allergies) parts.push(`allergies: ${f.allergies}`);
+                return parts.join(" — ");
+              }).join("; ")}`
             : "No family members registered.";
 
         return `Please generate a ${category} suggestion for this family. ${familyInfo}. Consider the day of the week and time of year.`;

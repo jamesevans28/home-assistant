@@ -6,6 +6,13 @@ interface FamilyMember {
   name: string;
   relationship: string | null;
   age: number | null;
+  date_of_birth: string | null;
+  interests: string | null;
+  dietary: string | null;
+  allergies: string | null;
+  school_or_work: string | null;
+  medical_notes: string | null;
+  notes: string | null;
 }
 
 interface Reminder {
@@ -38,7 +45,7 @@ export async function buildSystemPrompt(userId: number): Promise<string> {
 
   // Get family members
   const family = db
-    .prepare("SELECT name, relationship, age FROM family_members WHERE user_id = ?")
+    .prepare("SELECT name, relationship, age, date_of_birth, interests, dietary, allergies, school_or_work, medical_notes, notes FROM family_members WHERE user_id = ?")
     .all(userId) as FamilyMember[];
 
   // Get today's events
@@ -81,6 +88,13 @@ User timezone: ${timezone}
       const parts = [`- ${member.name}`];
       if (member.relationship) parts.push(`(${member.relationship})`);
       if (member.age) parts.push(`age ${member.age}`);
+      if (member.date_of_birth) parts.push(`DOB: ${member.date_of_birth}`);
+      if (member.interests) parts.push(`| interests: ${member.interests}`);
+      if (member.dietary) parts.push(`| dietary: ${member.dietary}`);
+      if (member.allergies) parts.push(`| allergies: ${member.allergies}`);
+      if (member.school_or_work) parts.push(`| school/work: ${member.school_or_work}`);
+      if (member.medical_notes) parts.push(`| medical: ${member.medical_notes}`);
+      if (member.notes) parts.push(`| notes: ${member.notes}`);
       prompt += parts.join(" ") + "\n";
     }
     prompt += "\n";
