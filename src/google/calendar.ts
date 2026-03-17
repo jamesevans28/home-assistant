@@ -14,16 +14,34 @@ export async function listGoogleEvents(
   if (!isGoogleAuthenticated()) return [];
 
   const calendar = getCalendar();
-  const response = await calendar.events.list({
-    calendarId: "primary",
-    timeMin,
-    timeMax,
-    maxResults,
-    singleEvents: true,
-    orderBy: "startTime",
+
+  // Fetch all calendars the user has access to (owned + shared)
+  const calList = await calendar.calendarList.list();
+  const calendars = calList.data.items ?? [];
+
+  const allEvents: calendar_v3.Schema$Event[] = [];
+
+  for (const cal of calendars) {
+    if (!cal.id) continue;
+    const response = await calendar.events.list({
+      calendarId: cal.id,
+      timeMin,
+      timeMax,
+      maxResults,
+      singleEvents: true,
+      orderBy: "startTime",
+    });
+    allEvents.push(...(response.data.items ?? []));
+  }
+
+  // Sort all events by start time
+  allEvents.sort((a, b) => {
+    const aStart = a.start?.dateTime ?? a.start?.date ?? "";
+    const bStart = b.start?.dateTime ?? b.start?.date ?? "";
+    return aStart.localeCompare(bStart);
   });
 
-  return response.data.items ?? [];
+  return allEvents.slice(0, maxResults);
 }
 
 export async function createGoogleEvent(
