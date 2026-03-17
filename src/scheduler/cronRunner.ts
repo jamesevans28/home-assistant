@@ -5,6 +5,7 @@ import { getLogger } from "../utils/logger.js";
 import { processReminders } from "./reminderService.js";
 import { sendDailySuggestions } from "./suggestionEngine.js";
 import { sendMorningDigest } from "./morningDigest.js";
+import { checkEmails } from "./emailWatcher.js";
 
 export function startScheduler(bot: Bot) {
   const config = getConfig();
@@ -48,5 +49,23 @@ export function startScheduler(bot: Bot) {
   log.info(
     { cron: config.MORNING_DIGEST_CRON },
     "Morning digest scheduler started"
+  );
+
+  // Email watcher
+  cron.schedule(
+    config.EMAIL_CHECK_CRON,
+    async () => {
+      try {
+        await checkEmails(bot);
+      } catch (err) {
+        log.error({ err }, "Email watcher cron error");
+      }
+    },
+    { timezone: config.DEFAULT_TIMEZONE }
+  );
+
+  log.info(
+    { cron: config.EMAIL_CHECK_CRON },
+    "Email watcher scheduler started"
   );
 }

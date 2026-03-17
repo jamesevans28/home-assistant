@@ -7,6 +7,8 @@ import { listGoogleEvents, formatGoogleEvent } from "../google/calendar.js";
 import { listEmails, type EmailSummary } from "../google/gmail.js";
 import { listReminders } from "../db/repositories/reminderRepo.js";
 import { listFamilyMembers } from "../db/repositories/familyRepo.js";
+import { listEvents } from "../db/repositories/eventRepo.js";
+import { addDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import { chat } from "../ai/agent.js";
 import { splitMessage } from "../utils/telegram.js";
@@ -107,6 +109,27 @@ function fetchLocalReminders(userId: number, timezone: string): string {
   }
 }
 
+function fetchUpcomingEvents(userId: number, timezone: string): string {
+  try {
+    const now = new Date();
+    const weekAhead = addDays(now, 7);
+    const tomorrowStart = formatInTimeZone(addDays(now, 1), timezone, "yyyy-MM-dd'T'00:00:00");
+    const weekEnd = formatInTimeZone(weekAhead, timezone, "yyyy-MM-dd'T'23:59:59");
+
+    const events = listEvents(userId, { fromDate: tomorrowStart, toDate: weekEnd });
+    if (events.length === 0) return "No upcoming events this week.";
+
+    return events
+      .map((e) => {
+        const date = formatInTimeZone(new Date(e.start_at + "Z"), timezone, "EEE d MMM, h:mm a");
+        return `- ${date}: ${e.title}${e.location ? ` (${e.location})` : ""}`;
+      })
+      .join("\n");
+  } catch {
+    return "Could not fetch upcoming events.";
+  }
+}
+
 function getFamilyContext(userId: number): string {
   const members = listFamilyMembers(userId);
   if (members.length === 0) return "";
@@ -131,7 +154,7 @@ export async function sendMorningDigest(bot: Bot) {
   log.info("Generating morning digest...");
 
   // Gather all data in parallel
-  const [weather, forecast, calendarEvents, emails, localReminders] =
+  const [weather, forecast, calendarEvents, emails, localReminders, upcomingEvents] =
     await Promise.all([
       config.OPENWEATHER_API_KEY
         ? fetchWeather(config.OPENWEATHER_API_KEY, config.WEATHER_LOCATION)
@@ -142,6 +165,7 @@ export async function sendMorningDigest(bot: Bot) {
       fetchCalendarEvents(timezone),
       fetchImportantEmails(timezone),
       Promise.resolve(fetchLocalReminders(getAdminUserId(), timezone)),
+      Promise.resolve(fetchUpcomingEvents(getAdminUserId(), timezone)),
     ]);
 
   const familyContext = getFamilyContext(getAdminUserId());
@@ -153,7 +177,7 @@ Here is all the raw data — synthesize it into a friendly, scannable morning di
 
 FORMAT RULES:
 - Start with a greeting and the date
-- Use these sections with emoji headers: ☀️ Weather, 📅 Today's Schedule, ✅ Reminders, 📧 Email Summary, 🏈 Sports & News
+- Use these sections with emoji headers: ☀️ Weather, 📅 Today's Schedule, 📆 Coming Up This Week, ✅ Reminders, 📧 Email Summary, 🏈 Sports & News
 - Keep each section brief — bullet points, not paragraphs
 - For emails: highlight anything that looks important or needs action (school notices, bills, appointments). Skip obvious spam/marketing
 - For the Sports & News section: Search for the latest AFL, F1, and NBL news and scores. Also include any MAJOR trending Australian or world news headlines that are breaking or trending right now
@@ -171,6 +195,9 @@ ${calendarEvents}
 
 REMINDERS DUE TODAY:
 ${localReminders}
+
+UPCOMING EVENTS (next 7 days):
+${upcomingEvents}
 
 EMAILS (last 24h, unread):
 ${emails}

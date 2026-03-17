@@ -75,21 +75,93 @@ function extractBody(message: gmail_v1.Schema$Message): string {
   const payload = message.payload;
   if (!payload) return message.snippet ?? "";
 
-  // Simple text/plain body
-  if (payload.body?.data) {
-    return Buffer.from(payload.body.data, "base64").toString("utf-8");
-  }
+  const text = extractPartByMime(payload, "text/plain");
+  if (text) return text;
 
-  // Multipart — find text/plain part
-  const parts = payload.parts ?? [];
-  for (const part of parts) {
-    if (part.mimeType === "text/plain" && part.body?.data) {
-      return Buffer.from(part.body.data, "base64").toString("utf-8");
-    }
-  }
+  // Fall back to HTML stripped of tags
+  const html = extractPartByMime(payload, "text/html");
+  if (html) return stripHtml(html);
 
   // Fall back to snippet
   return message.snippet ?? "";
+}
+
+export function getEmailHtml(message: gmail_v1.Schema$Message): string {
+  const payload = message.payload;
+  if (!payload) return "";
+  return extractPartByMime(payload, "text/html") ?? "";
+}
+
+function extractPartByMime(
+  payload: gmail_v1.Schema$MessagePart,
+  mimeType: string
+): string | null {
+  if (payload.mimeType === mimeType && payload.body?.data) {
+    return Buffer.from(payload.body.data, "base64").toString("utf-8");
+  }
+
+  for (const part of payload.parts ?? []) {
+    // Recurse into multipart parts
+    const found = extractPartByMime(part, mimeType);
+    if (found) return found;
+  }
+
+  return null;
+}
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function extractLinks(html: string): Array<{ text: string; href: string }> {
+  const links: Array<{ text: string; href: string }> = [];
+  const pattern = /<a[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
+  let match;
+  while ((match = pattern.exec(html)) !== null) {
+    const href = match[1].replace(/&amp;/g, "&");
+    const text = match[2].replace(/<[^>]+>/g, "").trim();
+    if (href && text) links.push({ text, href });
+  }
+  return links;
+}
+
+export async function getFullEmail(messageId: string) {
+  if (!isGoogleAuthenticated()) {
+    throw new Error("Google not authenticated.");
+  }
+
+  const gmail = getGmail();
+  const response = await gmail.users.messages.get({
+    userId: "me",
+    id: messageId,
+    format: "full",
+  });
+
+  const headers = response.data.payload?.headers ?? [];
+  const getHeader = (name: string) =>
+    headers.find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value ?? "";
+
+  return {
+    id: messageId,
+    from: getHeader("From"),
+    subject: getHeader("Subject"),
+    date: getHeader("Date"),
+    body: extractBody(response.data),
+    html: getEmailHtml(response.data),
+    links: extractLinks(getEmailHtml(response.data)),
+    labelIds: response.data.labelIds ?? [],
+  };
 }
 
 export async function sendEmail(

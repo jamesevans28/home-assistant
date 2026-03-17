@@ -17,6 +17,7 @@ const envSchema = z.object({
   GROUP_CHAT_ID: z.coerce.number().int().optional(),
   OPENWEATHER_API_KEY: z.string().optional(),
   WEATHER_LOCATION: z.string().default("Melbourne,AU"),
+  EMAIL_CHECK_CRON: z.string().default("*/30 * * * *"),
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace"])
     .default("info"),
