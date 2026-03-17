@@ -4,8 +4,9 @@
   "description": "OpenClaw — Personal home & life assistant via Telegram",
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=es2022 --format=esm --outdir=dist --packages=external",
     "start": "node dist/index.js",
+
     "dev": "tsx src/index.ts"
   },
   "dependencies": {

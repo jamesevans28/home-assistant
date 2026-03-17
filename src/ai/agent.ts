@@ -4,6 +4,7 @@ import { getLogger } from "../utils/logger.js";
 import { buildSystemPrompt } from "./prompt.js";
 import { createTools } from "./tools.js";
 import { createGoogleTools } from "./googleTools.js";
+import { createWebTools } from "./webTools.js";
 import { getDatabase } from "../db/database.js";
 
 let _client: CopilotClient | null = null;
@@ -39,6 +40,7 @@ async function getOrCreateSession(userId: number, telegramId: number): Promise<C
     .get(userId) as { timezone: string } | undefined;
   const timezone = user?.timezone ?? "Australia/Melbourne";
   const googleTools = createGoogleTools(userId, timezone);
+  const webTools = createWebTools();
 
   const session = await _client.createSession({
     model: "gpt-4.1",
@@ -46,7 +48,7 @@ async function getOrCreateSession(userId: number, telegramId: number): Promise<C
       mode: "replace",
       content: systemPrompt,
     },
-    tools: [...tools, ...googleTools],
+    tools: [...tools, ...googleTools, ...webTools],
     onPermissionRequest: approveAll,
   });
 

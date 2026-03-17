@@ -13,6 +13,10 @@ const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_REDIRECT_URI: z.string().default("urn:ietf:wg:oauth:2.0:oob"),
   GOOGLE_TOKEN_PATH: z.string().default("./data/google-token.json"),
+  MORNING_DIGEST_CRON: z.string().default("30 6 * * *"),
+  GROUP_CHAT_ID: z.coerce.number().int().optional(),
+  OPENWEATHER_API_KEY: z.string().optional(),
+  WEATHER_LOCATION: z.string().default("Melbourne,AU"),
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace"])
     .default("info"),
