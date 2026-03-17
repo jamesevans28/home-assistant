@@ -1,9 +1,9 @@
-import { google, calendar_v3 } from "googleapis";
+import { calendar_v3, calendar } from "@googleapis/calendar";
 import { getOAuth2Client, isGoogleAuthenticated } from "./auth.js";
 import { formatInTimeZone } from "date-fns-tz";
 
 function getCalendar(): calendar_v3.Calendar {
-  return google.calendar({ version: "v3", auth: getOAuth2Client() });
+  return calendar({ version: "v3", auth: getOAuth2Client() });
 }
 
 export async function listGoogleEvents(

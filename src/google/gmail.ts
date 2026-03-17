@@ -1,8 +1,8 @@
-import { google, gmail_v1 } from "googleapis";
+import { gmail_v1, gmail } from "@googleapis/gmail";
 import { getOAuth2Client, isGoogleAuthenticated } from "./auth.js";
 
 function getGmail(): gmail_v1.Gmail {
-  return google.gmail({ version: "v1", auth: getOAuth2Client() });
+  return gmail({ version: "v1", auth: getOAuth2Client() });
 }
 
 export interface EmailSummary {

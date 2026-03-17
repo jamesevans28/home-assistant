@@ -4,19 +4,19 @@
   "description": "OpenClaw — Personal home & life assistant via Telegram",
   "type": "module",
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --platform=node --target=es2022 --format=esm --outdir=dist --packages=external",
-    "start": "node dist/index.js",
-
+    "build": "esbuild src/index.ts --bundle --platform=node --target=es2022 --format=cjs --out-extension:.js=.cjs --outdir=dist --external:better-sqlite3",
+    "start": "node dist/index.cjs",
     "dev": "tsx src/index.ts"
   },
   "dependencies": {
     "@github/copilot-sdk": "^0.1.32",
+    "@googleapis/calendar": "^14.2.0",
+    "@googleapis/gmail": "^16.1.1",
     "better-sqlite3": "^11.0.0",
     "chrono-node": "^2.7.0",
     "date-fns": "^3.6.0",
     "date-fns-tz": "^3.1.0",
     "dotenv": "^17.3.1",
-    "googleapis": "^171.4.0",
     "grammy": "^1.21.0",
     "node-cron": "^3.0.3",
     "pino": "^8.19.0",

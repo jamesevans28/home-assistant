@@ -1,13 +1,10 @@
 import Database from "better-sqlite3";
 import { readFileSync, readdirSync, existsSync, mkdirSync } from "fs";
 import { dirname, resolve } from "path";
-import { fileURLToPath } from "url";
 import { getConfig } from "../config.js";
 import { getLogger } from "../utils/logger.js";
 
 let _db: Database.Database | null = null;
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export function initDatabase(): Database.Database {
   const config = getConfig();
@@ -40,7 +37,7 @@ function runMigrations(db: Database.Database) {
     )
   `);
 
-  const migrationsDir = resolve(__dirname, "migrations");
+  const migrationsDir = resolve(process.cwd(), "migrations");
 
   const files = readdirSync(migrationsDir)
     .filter((f) => f.endsWith(".sql"))

@@ -204,20 +204,16 @@ function parseTimeString(time: string): string {
 }
 
 function getTimezoneOffset(timezone: string): string {
-  // Get the UTC offset for the timezone
+  // Get the UTC offset by comparing UTC and local representations
   const now = new Date();
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    timeZoneName: "shortOffset",
-  });
-  const parts = formatter.formatToParts(now);
-  const tzPart = parts.find((p) => p.type === "timeZoneName")?.value ?? "+00:00";
-  // Convert "GMT+11" to "+11:00"
-  const offsetMatch = tzPart.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
-  if (!offsetMatch) return "+00:00";
-  const sign = offsetMatch[1];
-  const hrs = offsetMatch[2].padStart(2, "0");
-  const mins = offsetMatch[3] ?? "00";
+  const utcDate = new Date(now.toLocaleString("en-US", { timeZone: "UTC" }));
+  const tzDate = new Date(now.toLocaleString("en-US", { timeZone: timezone }));
+  const diffMs = tzDate.getTime() - utcDate.getTime();
+  const totalMinutes = Math.round(diffMs / 60000);
+  const sign = totalMinutes >= 0 ? "+" : "-";
+  const absMinutes = Math.abs(totalMinutes);
+  const hrs = Math.floor(absMinutes / 60).toString().padStart(2, "0");
+  const mins = (absMinutes % 60).toString().padStart(2, "0");
   return `${sign}${hrs}:${mins}`;
 }
 

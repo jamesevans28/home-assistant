@@ -1,4 +1,3 @@
-import { google } from "googleapis";
 import { OAuth2Client } from "google-auth-library";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { dirname } from "path";
@@ -26,7 +25,7 @@ export function getOAuth2Client(): OAuth2Client {
     );
   }
 
-  _oauth2Client = new google.auth.OAuth2(
+  _oauth2Client = new OAuth2Client(
     config.GOOGLE_CLIENT_ID,
     config.GOOGLE_CLIENT_SECRET,
     config.GOOGLE_REDIRECT_URI

@@ -8,7 +8,35 @@ import { createWebTools } from "./webTools.js";
 import { getDatabase } from "../db/database.js";
 
 let _client: CopilotClient | null = null;
-const _sessions = new Map<number, CopilotSession>();
+
+interface SessionEntry {
+  session: CopilotSession;
+  userId: number;
+  lastUsed: number;
+}
+
+const _sessions = new Map<number, SessionEntry>();
+
+// Clean up sessions unused for 30 minutes
+const SESSION_TTL_MS = 30 * 60 * 1000;
+let _cleanupTimer: ReturnType<typeof setInterval> | null = null;
+
+function startSessionCleanup() {
+  if (_cleanupTimer) return;
+  _cleanupTimer = setInterval(async () => {
+    const now = Date.now();
+    for (const [telegramId, entry] of _sessions) {
+      if (now - entry.lastUsed > SESSION_TTL_MS) {
+        _sessions.delete(telegramId);
+        try {
+          await entry.session.disconnect();
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }, 5 * 60 * 1000); // Check every 5 minutes
+}
 
 export async function initAgent(): Promise<CopilotClient> {
   const config = getConfig();
@@ -20,20 +48,17 @@ export async function initAgent(): Promise<CopilotClient> {
   });
 
   await _client.start();
+  startSessionCleanup();
   log.info("Copilot SDK client started");
   return _client;
 }
 
-async function getOrCreateSession(userId: number, telegramId: number): Promise<CopilotSession> {
-  const existing = _sessions.get(telegramId);
-  if (existing) return existing;
-
+async function createSession(userId: number, telegramId: number): Promise<SessionEntry> {
   if (!_client) throw new Error("Agent not initialized. Call initAgent() first.");
 
   const systemPrompt = await buildSystemPrompt(userId);
   const tools = createTools(userId);
 
-  // Get user timezone for Google tools
   const db = getDatabase();
   const user = db
     .prepare("SELECT timezone FROM users WHERE id = ?")
@@ -52,8 +77,9 @@ async function getOrCreateSession(userId: number, telegramId: number): Promise<C
     onPermissionRequest: approveAll,
   });
 
-  _sessions.set(telegramId, session);
-  return session;
+  const entry: SessionEntry = { session, userId, lastUsed: Date.now() };
+  _sessions.set(telegramId, entry);
+  return entry;
 }
 
 export async function chat(
@@ -62,14 +88,15 @@ export async function chat(
   message: string
 ): Promise<string> {
   const log = getLogger();
-  const session = await getOrCreateSession(userId, telegramId);
 
-  // Update system prompt with latest state before each message
-  const systemPrompt = await buildSystemPrompt(userId);
-  // Note: system prompt is set at session creation; for updates we recreate if needed
+  let entry = _sessions.get(telegramId);
+  if (!entry) {
+    entry = await createSession(userId, telegramId);
+  }
+  entry.lastUsed = Date.now();
 
   try {
-    const response = await session.sendAndWait(
+    const response = await entry.session.sendAndWait(
       { prompt: message },
       120_000 // 2 minute timeout
     );
@@ -85,7 +112,7 @@ export async function chat(
     // If session is broken, remove it so a fresh one is created next time
     _sessions.delete(telegramId);
     try {
-      await session.disconnect();
+      await entry.session.disconnect();
     } catch {
       // ignore disconnect errors
     }
@@ -95,11 +122,11 @@ export async function chat(
 }
 
 export async function refreshSession(telegramId: number) {
-  const session = _sessions.get(telegramId);
-  if (session) {
+  const entry = _sessions.get(telegramId);
+  if (entry) {
     _sessions.delete(telegramId);
     try {
-      await session.disconnect();
+      await entry.session.disconnect();
     } catch {
       // ignore
     }
@@ -107,9 +134,14 @@ export async function refreshSession(telegramId: number) {
 }
 
 export async function stopAgent() {
-  for (const [id, session] of _sessions) {
+  if (_cleanupTimer) {
+    clearInterval(_cleanupTimer);
+    _cleanupTimer = null;
+  }
+
+  for (const [, entry] of _sessions) {
     try {
-      await session.disconnect();
+      await entry.session.disconnect();
     } catch {
       // ignore
     }
