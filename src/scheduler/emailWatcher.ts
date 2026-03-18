@@ -9,6 +9,10 @@ import { createEvent } from "../db/repositories/eventRepo.js";
 import { chat } from "../ai/agent.js";
 import { splitMessage } from "../utils/telegram.js";
 import { toISOUTC } from "../utils/dateParser.js";
+import {
+  listShoppingItems,
+  removeShoppingItemByName,
+} from "../db/repositories/shoppingRepo.js";
 
 interface EmailRule {
   name: string;
@@ -182,6 +186,80 @@ Output the summary first, then a line "---EVENTS---", then the events section.`;
             );
           }
         }
+      },
+    },
+
+    {
+      name: "coles_order",
+      query: "from:coles.com.au newer_than:1d subject:order",
+      fromMatch: "coles.com.au",
+      handler: async (email) => {
+        log.info(
+          { subject: email.subject, id: email.id },
+          "Processing Coles order email"
+        );
+
+        const adminUserId = getAdminUserId();
+
+        // Use AI to extract ordered items from the email
+        const aiPrompt = `You received a Coles online grocery order confirmation email.
+
+SUBJECT: ${email.subject}
+EMAIL BODY:
+${email.body.slice(0, 5000)}
+
+Extract the list of items ordered. Output ONLY the item names, one per line, in this format:
+ITEM: <item name>
+
+Keep names simple and short (e.g. "milk" not "Coles Full Cream Milk 2L"). Strip brand names and quantities — just the core item name that would match a shopping list.
+
+If you can't find any items, output: NO_ITEMS`;
+
+        const response = await chat(adminUserId, config.ADMIN_TELEGRAM_ID, aiPrompt);
+
+        if (response.includes("NO_ITEMS")) {
+          log.info("Coles email had no extractable items");
+          return;
+        }
+
+        const orderedItems = response
+          .split("\n")
+          .filter((l) => l.trim().startsWith("ITEM:"))
+          .map((l) => l.replace(/^ITEM:\s*/i, "").trim())
+          .filter(Boolean);
+
+        if (orderedItems.length === 0) return;
+
+        // Cross-reference with shopping list and remove matches
+        const currentList = listShoppingItems(adminUserId);
+        const removed: string[] = [];
+
+        for (const ordered of orderedItems) {
+          if (removeShoppingItemByName(adminUserId, ordered)) {
+            removed.push(ordered);
+          }
+        }
+
+        // Notify group chat
+        if (removed.length > 0) {
+          const msg = `🛒 *Coles order received!*\n\nRemoved ${removed.length} item${removed.length !== 1 ? "s" : ""} from the shopping list: ${removed.join(", ")}`;
+          await bot.api
+            .sendMessage(chatId, msg, { parse_mode: "Markdown" })
+            .catch(() => bot.api.sendMessage(chatId, msg));
+        } else {
+          const remaining = listShoppingItems(adminUserId);
+          if (remaining.length > 0) {
+            const msg = `🛒 *Coles order received!* Still on the shopping list: ${remaining.map((i) => i.item).join(", ")}`;
+            await bot.api
+              .sendMessage(chatId, msg, { parse_mode: "Markdown" })
+              .catch(() => bot.api.sendMessage(chatId, msg));
+          }
+        }
+
+        log.info(
+          { ordered: orderedItems.length, removed: removed.length },
+          "Processed Coles order"
+        );
       },
     },
   ];

@@ -5,6 +5,7 @@ export interface ShoppingItem {
   user_id: number;
   item: string;
   added_by: string | null;
+  meal_ref: string | null;
   is_checked: number;
   created_at: string;
 }
@@ -12,14 +13,14 @@ export interface ShoppingItem {
 export function addShoppingItem(
   userId: number,
   item: string,
-  addedBy?: string
+  opts?: { addedBy?: string; mealRef?: string }
 ): ShoppingItem {
   const db = getDatabase();
   const result = db
     .prepare(
-      "INSERT INTO shopping_items (user_id, item, added_by) VALUES (?, ?, ?)"
+      "INSERT INTO shopping_items (user_id, item, added_by, meal_ref) VALUES (?, ?, ?, ?)"
     )
-    .run(userId, item.trim(), addedBy ?? null);
+    .run(userId, item.trim(), opts?.addedBy ?? null, opts?.mealRef ?? null);
 
   return db
     .prepare("SELECT * FROM shopping_items WHERE id = ?")
