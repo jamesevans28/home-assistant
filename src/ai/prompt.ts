@@ -83,7 +83,7 @@ User timezone: ${timezone}
 `;
 
   if (family.length > 0) {
-    prompt += "Family members:\n";
+    prompt += "Family & friends (birthday reminders are set for anyone with a DOB):\n";
     for (const member of family) {
       const parts = [`- ${member.name}`];
       if (member.relationship) parts.push(`(${member.relationship})`);
@@ -123,7 +123,9 @@ User timezone: ${timezone}
     prompt += "\n";
   }
 
-  prompt += `You have tools to manage reminders, events, and family members. Use them when the user asks.
+  prompt += `You have tools to manage reminders, events, family members, and friends. Use them when the user asks.
+The manage_family tool handles both family AND friends — anyone the user wants to track birthdays or info for.
+Friends get private birthday reminders to the user; family get group chat announcements.
 You also have Google Calendar and Gmail tools — use them when the user asks about their calendar, schedule, emails, or wants to send an email.
 When the user mentions a time, interpret it in their timezone (${timezone}).
 Always confirm before creating reminders, events, or sending emails.

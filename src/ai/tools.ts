@@ -270,19 +270,19 @@ export function createTools(userId: number): Tool[] {
     {
       name: "manage_family",
       description:
-        "Add, update, or remove a family member. Use when the user wants to manage their family list.",
+        "Add, update, or remove a family member or friend. Use when the user wants to track someone — family (spouse, child, parent, sibling) or a friend. Birthday reminders work for all of them.",
       parameters: {
         type: "object",
         properties: {
           action: {
             type: "string",
-            enum: ["add", "update", "remove"],
+            enum: ["add", "update", "remove", "list"],
             description: "What to do",
           },
-          name: { type: "string", description: "Family member name" },
+          name: { type: "string", description: "Person's name" },
           relationship: {
             type: "string",
-            description: "Relationship (spouse, child, parent, etc.)",
+            description: "Relationship to you — e.g. 'friend', 'spouse', 'child', 'parent', 'sibling', 'colleague'. Friends get private birthday reminders; family get group chat announcements.",
           },
           age: { type: "number", description: "Age" },
           date_of_birth: {
@@ -315,7 +315,7 @@ export function createTools(userId: number): Tool[] {
       },
       handler: async (args: unknown) => {
         const { action, name, relationship, age, notes, date_of_birth, interests, dietary, allergies, school_or_work, medical_notes } = args as {
-          action: "add" | "update" | "remove";
+          action: "add" | "update" | "remove" | "list";
           name: string;
           relationship?: string;
           age?: number;
@@ -329,6 +329,19 @@ export function createTools(userId: number): Tool[] {
         };
 
         const opts = { relationship, age, notes, date_of_birth, interests, dietary, allergies, school_or_work, medical_notes };
+
+        if (action === "list") {
+          const all = listFamilyMembers(userId);
+          if (all.length === 0) return "No family members or friends saved yet.";
+          return all
+            .map((m) => {
+              const parts = [`${m.name} (${m.relationship ?? "family"}${m.age ? `, ${m.age}` : ""})`];
+              if (m.date_of_birth) parts.push(`DOB: ${m.date_of_birth}`);
+              if (m.interests) parts.push(`interests: ${m.interests}`);
+              return parts.join(" — ");
+            })
+            .join("\n");
+        }
 
         if (action === "add") {
           const member = addFamilyMember(userId, name, opts);

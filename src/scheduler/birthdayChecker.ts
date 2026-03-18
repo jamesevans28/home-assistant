@@ -55,23 +55,45 @@ export function getTodayAndTomorrowBirthdays(userId: number, timezone: string): 
   return { today, tomorrow };
 }
 
+const FAMILY_RELATIONSHIPS = new Set([
+  "spouse", "partner", "wife", "husband", "child", "son", "daughter",
+  "parent", "mother", "father", "mum", "dad", "sibling", "brother", "sister",
+]);
+
+function isFriend(relationship: string | null): boolean {
+  if (!relationship) return false;
+  return !FAMILY_RELATIONSHIPS.has(relationship.toLowerCase());
+}
+
 export async function checkBirthdays(bot: Bot) {
   const log = getLogger();
   const config = getConfig();
-  const chatId = config.GROUP_CHAT_ID ?? config.ADMIN_TELEGRAM_ID;
+  const groupChatId = config.GROUP_CHAT_ID ?? config.ADMIN_TELEGRAM_ID;
+  const adminId = config.ADMIN_TELEGRAM_ID;
   const timezone = config.DEFAULT_TIMEZONE;
   const adminUserId = getAdminUserId();
 
   const { today, tomorrow } = getTodayAndTomorrowBirthdays(adminUserId, timezone);
 
   for (const member of today) {
-    const ageStr = member.turningAge !== null ? ` — turning ${member.turningAge} today!` : "!";
-    const msg = `🎂 *Happy Birthday, ${member.name}!* 🎉\n\nToday is ${member.name}'s birthday${ageStr} Wishing them a wonderful day! 🎈`;
+    const ageStr = member.turningAge !== null ? ` — turning ${member.turningAge} today` : "";
+    const friend = isFriend(member.relationship);
+
     try {
-      await bot.api
-        .sendMessage(chatId, msg, { parse_mode: "Markdown" })
-        .catch(() => bot.api.sendMessage(chatId, msg));
-      log.info({ name: member.name }, "Sent birthday message");
+      if (friend) {
+        // Personal nudge to the admin to reach out
+        const msg = `🎂 *${member.name}'s birthday today${ageStr}!*\n\nDon't forget to wish them a happy birthday 🎉`;
+        await bot.api
+          .sendMessage(adminId, msg, { parse_mode: "Markdown" })
+          .catch(() => bot.api.sendMessage(adminId, msg));
+      } else {
+        // Announce in group chat for family
+        const msg = `🎂 *Happy Birthday, ${member.name}!* 🎉\n\nToday is ${member.name}'s birthday${ageStr}! Wishing them a wonderful day 🎈`;
+        await bot.api
+          .sendMessage(groupChatId, msg, { parse_mode: "Markdown" })
+          .catch(() => bot.api.sendMessage(groupChatId, msg));
+      }
+      log.info({ name: member.name, friend }, "Sent birthday message");
     } catch (err) {
       log.error({ err, name: member.name }, "Failed to send birthday message");
     }
@@ -79,12 +101,23 @@ export async function checkBirthdays(bot: Bot) {
 
   for (const member of tomorrow) {
     const ageStr = member.turningAge !== null ? ` (turning ${member.turningAge})` : "";
-    const msg = `🎁 *Reminder:* Tomorrow is ${member.name}'s birthday${ageStr}! Don't forget to wish them well 🎂`;
+    const friend = isFriend(member.relationship);
+
     try {
-      await bot.api
-        .sendMessage(chatId, msg, { parse_mode: "Markdown" })
-        .catch(() => bot.api.sendMessage(chatId, msg));
-      log.info({ name: member.name }, "Sent birthday eve reminder");
+      if (friend) {
+        // Personal heads-up to remind admin to reach out tomorrow
+        const msg = `🎁 *Reminder:* Tomorrow is ${member.name}'s birthday${ageStr} — remember to wish them well! 🎂`;
+        await bot.api
+          .sendMessage(adminId, msg, { parse_mode: "Markdown" })
+          .catch(() => bot.api.sendMessage(adminId, msg));
+      } else {
+        // Announce in group chat for family
+        const msg = `🎁 *Reminder:* Tomorrow is ${member.name}'s birthday${ageStr}! Don't forget to celebrate 🎂`;
+        await bot.api
+          .sendMessage(groupChatId, msg, { parse_mode: "Markdown" })
+          .catch(() => bot.api.sendMessage(groupChatId, msg));
+      }
+      log.info({ name: member.name, friend }, "Sent birthday eve reminder");
     } catch (err) {
       log.error({ err, name: member.name }, "Failed to send birthday eve reminder");
     }
