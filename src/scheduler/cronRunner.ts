@@ -7,6 +7,7 @@ import { sendDailySuggestions } from "./suggestionEngine.js";
 import { sendMorningDigest } from "./morningDigest.js";
 import { checkEmails } from "./emailWatcher.js";
 import { checkBirthdays } from "./birthdayChecker.js";
+import { sendBinReminder } from "./binReminder.js";
 
 export function startScheduler(bot: Bot) {
   const config = getConfig();
@@ -84,4 +85,19 @@ export function startScheduler(bot: Bot) {
   );
 
   log.info("Birthday checker started (7am daily)");
+
+  // Bin reminder — Monday at 6pm
+  cron.schedule(
+    "0 18 * * 1",
+    async () => {
+      try {
+        await sendBinReminder(bot);
+      } catch (err) {
+        log.error({ err }, "Bin reminder cron error");
+      }
+    },
+    { timezone: config.DEFAULT_TIMEZONE }
+  );
+
+  log.info("Bin reminder started (Monday 6pm)");
 }
