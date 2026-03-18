@@ -6,6 +6,7 @@ import { processReminders } from "./reminderService.js";
 import { sendDailySuggestions } from "./suggestionEngine.js";
 import { sendMorningDigest } from "./morningDigest.js";
 import { checkEmails } from "./emailWatcher.js";
+import { checkBirthdays } from "./birthdayChecker.js";
 
 export function startScheduler(bot: Bot) {
   const config = getConfig();
@@ -68,4 +69,19 @@ export function startScheduler(bot: Bot) {
     { cron: config.EMAIL_CHECK_CRON },
     "Email watcher scheduler started"
   );
+
+  // Birthday checker — runs at 7am daily (before the digest)
+  cron.schedule(
+    "0 7 * * *",
+    async () => {
+      try {
+        await checkBirthdays(bot);
+      } catch (err) {
+        log.error({ err }, "Birthday checker cron error");
+      }
+    },
+    { timezone: config.DEFAULT_TIMEZONE }
+  );
+
+  log.info("Birthday checker started (7am daily)");
 }

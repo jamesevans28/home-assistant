@@ -8,6 +8,7 @@ import { listEmails, type EmailSummary } from "../google/gmail.js";
 import { listReminders } from "../db/repositories/reminderRepo.js";
 import { listFamilyMembers } from "../db/repositories/familyRepo.js";
 import { listEvents } from "../db/repositories/eventRepo.js";
+import { getTodayAndTomorrowBirthdays } from "./birthdayChecker.js";
 import { addDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import { chat } from "../ai/agent.js";
@@ -130,6 +131,20 @@ function fetchUpcomingEvents(userId: number, timezone: string): string {
   }
 }
 
+function getBirthdayContext(userId: number, timezone: string): string {
+  const { today, tomorrow } = getTodayAndTomorrowBirthdays(userId, timezone);
+  const lines: string[] = [];
+  for (const m of today) {
+    const age = m.turningAge !== null ? ` (turning ${m.turningAge})` : "";
+    lines.push(`🎂 TODAY: ${m.name}'s birthday${age}!`);
+  }
+  for (const m of tomorrow) {
+    const age = m.turningAge !== null ? ` (turning ${m.turningAge})` : "";
+    lines.push(`🎁 TOMORROW: ${m.name}'s birthday${age}`);
+  }
+  return lines.join("\n");
+}
+
 function getFamilyContext(userId: number): string {
   const members = listFamilyMembers(userId);
   if (members.length === 0) return "";
@@ -169,6 +184,7 @@ export async function sendMorningDigest(bot: Bot) {
     ]);
 
   const familyContext = getFamilyContext(getAdminUserId());
+  const birthdayContext = getBirthdayContext(getAdminUserId(), timezone);
 
   // Build the context for the AI to compose a nice digest
   const digestPrompt = `You are composing the morning briefing for the family group chat. Today is ${today}.
@@ -178,6 +194,7 @@ Here is all the raw data — synthesize it into a friendly, scannable morning di
 FORMAT RULES:
 - Start with a greeting and the date
 - Use these sections with emoji headers: ☀️ Weather, 📅 Today's Schedule, 📆 Coming Up This Week, ✅ Reminders, 📧 Email Summary, 🏈 Sports & News
+- If there are any birthdays today or tomorrow, add a 🎂 Birthdays section right after the greeting — make it celebratory!
 - Keep each section brief — bullet points, not paragraphs
 - For emails: highlight anything that looks important or needs action (school notices, bills, appointments). Skip obvious spam/marketing
 - For the Sports & News section: Search for the latest AFL, F1, and NBL news and scores. Also include any MAJOR trending Australian or world news headlines that are breaking or trending right now
@@ -201,6 +218,9 @@ ${upcomingEvents}
 
 EMAILS (last 24h, unread):
 ${emails}
+
+BIRTHDAYS:
+${birthdayContext || "No birthdays today or tomorrow."}
 
 FAMILY: ${familyContext || "No family members registered yet."}
 
