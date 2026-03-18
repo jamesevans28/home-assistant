@@ -53,10 +53,11 @@ export async function chatHandler(ctx: Context) {
   const botInfo = ctx.me;
   const chatId = ctx.chat!.id;
   const isMentioned = isGroup && text.includes(`@${botInfo.username}`);
+  const isNameMentioned = isGroup && /\bsusie\b/i.test(text);
   const isReply =
     isGroup && ctx.message?.reply_to_message?.from?.id === botInfo.id;
   const isInConvo = isGroup && isInActiveConversation(chatId, from.id);
-  const isDirected = !isGroup || isMentioned || isReply || isInConvo;
+  const isDirected = !isGroup || isMentioned || isNameMentioned || isReply || isInConvo;
 
   // Reset the timer on every message during an active conversation
   if (isInConvo) {
