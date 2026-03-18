@@ -16,6 +16,12 @@ import {
   listFamilyMembers,
   findFamilyMemberByName,
 } from "../db/repositories/familyRepo.js";
+import {
+  addShoppingItem,
+  listShoppingItems,
+  removeShoppingItemByName,
+  clearShoppingList,
+} from "../db/repositories/shoppingRepo.js";
 import { parseNaturalDate, toISOUTC } from "../utils/dateParser.js";
 import { formatInTimeZone } from "date-fns-tz";
 
@@ -396,6 +402,90 @@ export function createTools(userId: number): Tool[] {
             : "No family members registered.";
 
         return `Please generate a ${category} suggestion for this family. ${familyInfo}. Consider the day of the week and time of year.`;
+      },
+    },
+
+    {
+      name: "shopping_list",
+      description:
+        "Manage the shared family shopping list. Use when someone mentions needing to buy something, or says they've bought/got something (remove it). Examples: 'we need milk' → add milk. 'add bread and eggs' → add both. 'I got the bread' or 'picked up milk' → remove. 'what's on the list?' → list. 'clear the shopping list' → clear.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: {
+            type: "string",
+            enum: ["add", "remove", "list", "clear"],
+            description: "What to do",
+          },
+          items: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "Item names to add or remove. For remove, matches by name (case-insensitive).",
+          },
+        },
+        required: ["action"],
+      },
+      handler: async (args: unknown) => {
+        const { action, items = [] } = args as {
+          action: "add" | "remove" | "list" | "clear";
+          items?: string[];
+        };
+
+        if (action === "list") {
+          const current = listShoppingItems(userId);
+          if (current.length === 0) return "The shopping list is empty.";
+          return (
+            "Shopping list:\n" +
+            current
+              .map(
+                (item, i) =>
+                  `${i + 1}. ${item.item}${item.added_by ? ` (added by ${item.added_by})` : ""}`
+              )
+              .join("\n")
+          );
+        }
+
+        if (action === "add") {
+          if (items.length === 0) return "No items specified to add.";
+          const added: string[] = [];
+          for (const item of items) {
+            if (item.trim()) {
+              addShoppingItem(userId, item.trim());
+              added.push(item.trim());
+            }
+          }
+          return added.length === 1
+            ? `Added "${added[0]}" to the shopping list.`
+            : `Added ${added.length} items to the shopping list: ${added.join(", ")}`;
+        }
+
+        if (action === "remove") {
+          if (items.length === 0) return "No items specified to remove.";
+          const removed: string[] = [];
+          const notFound: string[] = [];
+          for (const item of items) {
+            if (removeShoppingItemByName(userId, item)) {
+              removed.push(item);
+            } else {
+              notFound.push(item);
+            }
+          }
+          const parts: string[] = [];
+          if (removed.length > 0) parts.push(`Removed: ${removed.join(", ")}`);
+          if (notFound.length > 0)
+            parts.push(`Not found on list: ${notFound.join(", ")}`);
+          return parts.join(". ");
+        }
+
+        if (action === "clear") {
+          const count = clearShoppingList(userId);
+          return count > 0
+            ? `Cleared ${count} item${count !== 1 ? "s" : ""} from the shopping list.`
+            : "The shopping list is already empty.";
+        }
+
+        return "Unknown action.";
       },
     },
   ];
