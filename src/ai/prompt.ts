@@ -47,8 +47,8 @@ export async function buildSystemPrompt(userId: number): Promise<string> {
 
   // Get family members
   const family = db
-    .prepare("SELECT name, relationship, age, date_of_birth, interests, dietary, allergies, school_or_work, medical_notes, notes FROM family_members WHERE user_id = ?")
-    .all(userId) as FamilyMember[];
+    .prepare("SELECT name, relationship, age, date_of_birth, interests, dietary, allergies, school_or_work, medical_notes, favourite_teams, telegram_id, notes, profile_json FROM family_members WHERE user_id = ?")
+    .all(userId) as (FamilyMember & { profile_json: string })[];
 
   // Get today's events
   const todayStart = formatInTimeZone(new Date(), timezone, "yyyy-MM-dd'T'00:00:00");
@@ -93,7 +93,7 @@ IMPORTANT — Be proactive when searching for information:
 `;
 
   if (family.length > 0) {
-    prompt += "Family & friends (birthday reminders are set for anyone with a DOB):\n";
+    prompt += "Family & friends:\n";
     for (const member of family) {
       const parts = [`- ${member.name}`];
       if (member.relationship) parts.push(`(${member.relationship})`);
@@ -107,6 +107,21 @@ IMPORTANT — Be proactive when searching for information:
       if (member.favourite_teams) parts.push(`| teams: ${member.favourite_teams}`);
       if (member.telegram_id) parts.push(`| telegram_id: ${member.telegram_id}`);
       if (member.notes) parts.push(`| notes: ${member.notes}`);
+
+      // Include extended profile data
+      try {
+        const profile = JSON.parse(member.profile_json || "{}");
+        const profileEntries = Object.entries(profile)
+          .filter(([k, v]) => v != null && v !== "" && k !== "last_check_in_date")
+          .slice(0, 20); // cap to avoid massive prompts
+        if (profileEntries.length > 0) {
+          const profileStr = profileEntries
+            .map(([k, v]) => `${k.replace(/_/g, " ")}: ${Array.isArray(v) ? (v as string[]).join(", ") : v}`)
+            .join(", ");
+          parts.push(`| profile: ${profileStr}`);
+        }
+      } catch { /* ignore bad JSON */ }
+
       prompt += parts.join(" ") + "\n";
     }
     prompt += "\n";
@@ -142,6 +157,13 @@ You also have Google Calendar and Gmail tools — use them when the user asks ab
 You have a shared family shopping list tool. When someone says they need something (e.g. "we need milk", "add bread"), add it. When they say they got something (e.g. "I got the milk", "picked up bread"), remove it. No confirmation needed for shopping list changes — just do it.
 You have a meal planner tool. The family builds up a meal library over time. You can suggest meals, log what they had, and add meal ingredients to the shopping list (tagged with the meal name). When adding a new meal, ALWAYS ask for the main ingredients if they weren't provided — this is essential for shopping list integration. Kristy is celiac, so always consider GF options.
 Each family member can have favourite sports teams. When someone mentions a team or asks about sports, update their profile with the manage_family tool. Be proactive about linking Telegram users to family members using their telegram_id — when someone chats in the group, you can see their name and ID. The family's teams drive game day alerts (midday) and the morning digest sports section.
+
+PROFILE DATA — IMPORTANT:
+- Each family member has an extended profile. You can see their profile data above.
+- PROACTIVELY save personal info you learn from conversations using manage_family action="update" with the profile parameter. Examples: if someone mentions their coffee order, favourite movie, a goal they're working towards, their kid's best friend, shoe size, etc. — save it immediately.
+- Use profile data SUBTLY in your responses to make them personal. Don't announce that you remember something — just naturally incorporate it. For example, if you know someone's coffee order, mention it casually when relevant. If you know a kid's best friend, reference them by name.
+- Never reveal that you're collecting data or make it feel like surveillance. Be natural.
+
 When the user mentions a time, interpret it in their timezone (${timezone}).
 Always confirm before creating reminders, events, or sending emails.
 Keep responses concise — this is a chat app, not an essay.`;

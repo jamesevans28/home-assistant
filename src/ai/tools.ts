@@ -15,6 +15,9 @@ import {
   removeFamilyMember,
   listFamilyMembers,
   findFamilyMemberByName,
+  getProfile,
+  updateProfile,
+  type ProfileData,
 } from "../db/repositories/familyRepo.js";
 import {
   addShoppingItem,
@@ -285,14 +288,15 @@ export function createTools(userId: number): Tool[] {
     {
       name: "manage_family",
       description:
-        "Add, update, or remove a family member or friend. Use when the user wants to track someone — family (spouse, child, parent, sibling) or a friend. Birthday reminders work for all of them.",
+        `Manage family members, friends, and their profiles. IMPORTANT: Whenever you learn personal info about someone from conversation (favourite food, coffee order, hobbies, goals, fears, fun facts, etc.), PROACTIVELY save it using action="update" with the profile parameter. This builds up a rich profile that makes your responses more personal.
+Actions: add, update, remove, list, profile (view full profile).`,
       parameters: {
         type: "object",
         properties: {
           action: {
             type: "string",
-            enum: ["add", "update", "remove", "list"],
-            description: "What to do",
+            enum: ["add", "update", "remove", "list", "profile"],
+            description: "What to do. Use 'profile' to view someone's full profile.",
           },
           name: { type: "string", description: "Person's name" },
           relationship: {
@@ -333,12 +337,16 @@ export function createTools(userId: number): Tool[] {
             description: "The person's Telegram user ID (numeric). Link a family member to their Telegram account so Susie knows who they are in the group chat.",
           },
           notes: { type: "string", description: "Any other notes about this person" },
+          profile: {
+            type: "object",
+            description: "Extended profile data to save. Use this to store ANY personal info learned from conversation: favourite_colour, favourite_food, favourite_movie, favourite_book, favourite_music, favourite_tv_shows, favourite_restaurant, love_language, personality_type, morning_person_or_night_owl, comfort_food, go_to_drink, go_to_snack, current_goals, dreams, bucket_list, stressors, hobbies_active, skills, learning, best_friends, social_preferences, job_title, work_schedule, exercise_routine, sleep_schedule, anniversary, important_dates, shoe_size, clothing_size, best_friends_at_school, after_school_activities, pet_peeves, quirks, fun_facts, gift_ideas, wish_list, recent_wins, holiday_destination_dream, last_holiday, guilty_pleasure, hidden_talent, childhood_memory, proudest_moment, biggest_fear, superpower_choice, ideal_weekend, favourite_season, cooking_specialty, takeaway_order, or any other key you think is relevant.",
+          },
         },
         required: ["action", "name"],
       },
       handler: async (args: unknown) => {
-        const { action, name, relationship, age, notes, date_of_birth, interests, dietary, allergies, school_or_work, medical_notes, favourite_teams, telegram_id } = args as {
-          action: "add" | "update" | "remove" | "list";
+        const { action, name, relationship, age, notes, date_of_birth, interests, dietary, allergies, school_or_work, medical_notes, favourite_teams, telegram_id, profile } = args as {
+          action: "add" | "update" | "remove" | "list" | "profile";
           name: string;
           relationship?: string;
           age?: number;
@@ -351,6 +359,7 @@ export function createTools(userId: number): Tool[] {
           medical_notes?: string;
           favourite_teams?: string;
           telegram_id?: number;
+          profile?: ProfileData;
         };
 
         const opts = { relationship, age, notes, date_of_birth, interests, dietary, allergies, school_or_work, medical_notes, favourite_teams, telegram_id };
@@ -370,8 +379,37 @@ export function createTools(userId: number): Tool[] {
             .join("\n");
         }
 
+        if (action === "profile") {
+          const existing = findFamilyMemberByName(userId, name);
+          if (!existing) return `Could not find "${name}".`;
+          const profileData = getProfile(existing.id);
+          const entries = Object.entries(profileData).filter(([, v]) => v != null && v !== "");
+          const basicInfo = [
+            existing.relationship && `Relationship: ${existing.relationship}`,
+            existing.age && `Age: ${existing.age}`,
+            existing.date_of_birth && `DOB: ${existing.date_of_birth}`,
+            existing.interests && `Interests: ${existing.interests}`,
+            existing.dietary && `Dietary: ${existing.dietary}`,
+            existing.allergies && `Allergies: ${existing.allergies}`,
+            existing.school_or_work && `School/Work: ${existing.school_or_work}`,
+            existing.favourite_teams && `Teams: ${existing.favourite_teams}`,
+          ].filter(Boolean);
+
+          let result = `Profile for ${existing.name}:\n`;
+          if (basicInfo.length > 0) result += basicInfo.join("\n") + "\n";
+          if (entries.length > 0) {
+            result += "\nExtended profile:\n" + entries
+              .map(([k, v]) => `• ${k.replace(/_/g, " ")}: ${Array.isArray(v) ? v.join(", ") : v}`)
+              .join("\n");
+          } else {
+            result += "\nNo extended profile data yet.";
+          }
+          return result;
+        }
+
         if (action === "add") {
           const member = addFamilyMember(userId, name, opts);
+          if (profile) updateProfile(member.id, userId, profile);
           return `Added ${name}${relationship ? ` (${relationship})` : ""}${age ? `, age ${age}` : ""} to your family. ID: ${member.id}`;
         }
 
@@ -379,6 +417,7 @@ export function createTools(userId: number): Tool[] {
           const existing = findFamilyMemberByName(userId, name);
           if (!existing) return `Could not find family member "${name}".`;
           updateFamilyMember(existing.id, userId, opts);
+          if (profile) updateProfile(existing.id, userId, profile);
           return `Updated ${name}'s info.`;
         }
 

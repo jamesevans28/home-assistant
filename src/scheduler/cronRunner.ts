@@ -9,6 +9,7 @@ import { checkEmails } from "./emailWatcher.js";
 import { checkBirthdays } from "./birthdayChecker.js";
 import { sendBinReminder } from "./binReminder.js";
 import { checkGameDay } from "./gameDayChecker.js";
+import { scheduleRandomCheckin } from "./profileCheckin.js";
 
 export function startScheduler(bot: Bot) {
   const config = getConfig();
@@ -116,4 +117,15 @@ export function startScheduler(bot: Bot) {
   );
 
   log.info("Game day checker started (12pm daily)");
+
+  // Profile check-in — triggers at 1pm, sends at random time between 1-6pm
+  cron.schedule(
+    "0 13 * * *",
+    () => {
+      scheduleRandomCheckin(bot);
+    },
+    { timezone: config.DEFAULT_TIMEZONE }
+  );
+
+  log.info("Profile check-in started (1-6pm daily, random)");
 }

@@ -15,8 +15,11 @@ export interface FamilyMember {
   medical_notes: string | null;
   favourite_teams: string | null;
   telegram_id: number | null;
+  profile_json: string;
   created_at: string;
 }
+
+export type ProfileData = Record<string, string | string[] | number | boolean | null>;
 
 export interface FamilyMemberOpts {
   relationship?: string;
@@ -133,3 +136,67 @@ export function findFamilyMemberByName(userId: number, name: string): FamilyMemb
     .prepare("SELECT * FROM family_members WHERE user_id = ? AND LOWER(name) = LOWER(?)")
     .get(userId, name) as FamilyMember | undefined;
 }
+
+export function getProfile(memberId: number): ProfileData {
+  const db = getDatabase();
+  const row = db
+    .prepare("SELECT profile_json FROM family_members WHERE id = ?")
+    .get(memberId) as { profile_json: string } | undefined;
+  try {
+    return JSON.parse(row?.profile_json || "{}");
+  } catch {
+    return {};
+  }
+}
+
+export function updateProfile(
+  memberId: number,
+  userId: number,
+  updates: ProfileData
+): boolean {
+  const db = getDatabase();
+  const existing = getProfile(memberId);
+  const merged = { ...existing, ...updates };
+  const result = db
+    .prepare("UPDATE family_members SET profile_json = ? WHERE id = ? AND user_id = ?")
+    .run(JSON.stringify(merged), memberId, userId);
+  return result.changes > 0;
+}
+
+export function getProfileField(memberId: number, key: string): unknown {
+  const profile = getProfile(memberId);
+  return profile[key] ?? null;
+}
+
+export function getFamilyMembersWithTelegramId(userId: number): FamilyMember[] {
+  const db = getDatabase();
+  return db
+    .prepare(
+      "SELECT * FROM family_members WHERE user_id = ? AND telegram_id IS NOT NULL ORDER BY name"
+    )
+    .all(userId) as FamilyMember[];
+}
+
+/** All profile field names that Susie can ask about during check-ins */
+export const PROFILE_FIELDS = [
+  "favourite_colour", "favourite_food", "favourite_movie", "favourite_book",
+  "favourite_music", "favourite_tv_shows", "favourite_restaurant",
+  "love_language", "personality_type", "morning_person_or_night_owl",
+  "comfort_food", "go_to_drink", "go_to_snack",
+  "current_goals", "dreams", "bucket_list", "stressors",
+  "hobbies_active", "skills", "learning",
+  "best_friends", "social_preferences",
+  "job_title", "work_schedule",
+  "exercise_routine", "sleep_schedule",
+  "anniversary", "important_dates",
+  "shoe_size", "clothing_size",
+  "best_friends_at_school", "after_school_activities",
+  "pet_peeves", "quirks", "fun_facts",
+  "gift_ideas", "wish_list", "recent_wins",
+  "holiday_destination_dream", "last_holiday",
+  "guilty_pleasure", "hidden_talent",
+  "childhood_memory", "proudest_moment",
+  "biggest_fear", "superpower_choice",
+  "ideal_weekend", "favourite_season",
+  "cooking_specialty", "takeaway_order",
+] as const;
