@@ -6,7 +6,7 @@ import { isGoogleAuthenticated } from "../google/auth.js";
 import { listGoogleEvents, formatGoogleEvent } from "../google/calendar.js";
 import { listEmails, type EmailSummary } from "../google/gmail.js";
 import { listReminders } from "../db/repositories/reminderRepo.js";
-import { listFamilyMembers } from "../db/repositories/familyRepo.js";
+import { listFamilyMembers, getAllFavouriteTeams } from "../db/repositories/familyRepo.js";
 import { listEvents } from "../db/repositories/eventRepo.js";
 import { getTodayAndTomorrowBirthdays } from "./birthdayChecker.js";
 import { getBinWeek, getBinMessage } from "./binReminder.js";
@@ -188,6 +188,11 @@ export async function sendMorningDigest(bot: Bot) {
   const familyContext = getFamilyContext(getAdminUserId());
   const birthdayContext = getBirthdayContext(getAdminUserId(), timezone);
   const shoppingItems = listShoppingItems(getAdminUserId());
+  const familyTeams = getAllFavouriteTeams(getAdminUserId());
+  const teamsContext = familyTeams.length > 0
+    ? familyTeams.map((t) => `${t.team} (followed by ${t.members.join(", ")})`).join(", ")
+    : null;
+
   const shoppingContext =
     shoppingItems.length > 0
       ? `${shoppingItems.length} item${shoppingItems.length !== 1 ? "s" : ""}: ${shoppingItems.map((i) => i.item).join(", ")}`
@@ -243,11 +248,10 @@ ${shoppingContext ? `\nSHOPPING LIST:\n${shoppingContext}` : ""}
 FAMILY: ${familyContext || "No family members registered yet."}
 
 IMPORTANT: For the Sports & News section, you MUST use your web search capabilities to find:
-1. Latest AFL news, scores, trade rumours, and upcoming fixtures
-2. Latest F1 news, race results, qualifying, and standings
-3. Latest NBL news and scores
-4. Top 3-5 MAJOR trending news stories (Australian and world) — especially breaking news everyone should know about
-5. Search major outlets like ABC News, news.com.au, ESPN, Fox Sports, BBC
+${teamsContext ? `FAMILY'S TEAMS: ${teamsContext}\n- Search for the latest news, scores, and upcoming fixtures for each of these teams. Mention which family member follows each team.\n- If any team is playing today/tonight, highlight it!` : `- Search for the latest AFL, F1, and NBL news and scores.`}
+- Top 3-5 MAJOR trending news stories (Australian and world) — especially breaking news everyone should know about
+- Search major outlets like ABC News, news.com.au, ESPN, Fox Sports, BBC
+- Try multiple search queries — do NOT give up after one failed search.
 
 Compose the digest now.`;
 

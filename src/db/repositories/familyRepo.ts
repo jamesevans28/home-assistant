@@ -13,6 +13,8 @@ export interface FamilyMember {
   allergies: string | null;
   school_or_work: string | null;
   medical_notes: string | null;
+  favourite_teams: string | null;
+  telegram_id: number | null;
   created_at: string;
 }
 
@@ -26,6 +28,8 @@ export interface FamilyMemberOpts {
   allergies?: string;
   school_or_work?: string;
   medical_notes?: string;
+  favourite_teams?: string;
+  telegram_id?: number;
 }
 
 export function addFamilyMember(
@@ -36,8 +40,8 @@ export function addFamilyMember(
   const db = getDatabase();
   const result = db
     .prepare(
-      `INSERT INTO family_members (user_id, name, relationship, age, notes, date_of_birth, interests, dietary, allergies, school_or_work, medical_notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO family_members (user_id, name, relationship, age, notes, date_of_birth, interests, dietary, allergies, school_or_work, medical_notes, favourite_teams, telegram_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       userId,
@@ -50,7 +54,9 @@ export function addFamilyMember(
       opts?.dietary ?? null,
       opts?.allergies ?? null,
       opts?.school_or_work ?? null,
-      opts?.medical_notes ?? null
+      opts?.medical_notes ?? null,
+      opts?.favourite_teams ?? null,
+      opts?.telegram_id ?? null
     );
 
   return db
@@ -77,6 +83,7 @@ export function updateFamilyMember(
   const fields = [
     "name", "relationship", "age", "notes", "date_of_birth",
     "interests", "dietary", "allergies", "school_or_work", "medical_notes",
+    "favourite_teams", "telegram_id",
   ] as const;
 
   for (const field of fields) {
@@ -102,6 +109,22 @@ export function removeFamilyMember(memberId: number, userId: number): boolean {
     .prepare("DELETE FROM family_members WHERE id = ? AND user_id = ?")
     .run(memberId, userId);
   return result.changes > 0;
+}
+
+export function getAllFavouriteTeams(userId: number): Array<{ team: string; members: string[] }> {
+  const members = listFamilyMembers(userId);
+  const teamMap = new Map<string, string[]>();
+
+  for (const m of members) {
+    if (!m.favourite_teams) continue;
+    for (const team of m.favourite_teams.split(",").map((t) => t.trim()).filter(Boolean)) {
+      const lower = team.toLowerCase();
+      if (!teamMap.has(lower)) teamMap.set(lower, []);
+      teamMap.get(lower)!.push(m.name);
+    }
+  }
+
+  return Array.from(teamMap.entries()).map(([team, members]) => ({ team, members }));
 }
 
 export function findFamilyMemberByName(userId: number, name: string): FamilyMember | undefined {

@@ -8,6 +8,7 @@ import { sendMorningDigest } from "./morningDigest.js";
 import { checkEmails } from "./emailWatcher.js";
 import { checkBirthdays } from "./birthdayChecker.js";
 import { sendBinReminder } from "./binReminder.js";
+import { checkGameDay } from "./gameDayChecker.js";
 
 export function startScheduler(bot: Bot) {
   const config = getConfig();
@@ -100,4 +101,19 @@ export function startScheduler(bot: Bot) {
   );
 
   log.info("Bin reminder started (Monday 6pm)");
+
+  // Game day checker — runs at midday daily
+  cron.schedule(
+    "0 12 * * *",
+    async () => {
+      try {
+        await checkGameDay(bot);
+      } catch (err) {
+        log.error({ err }, "Game day checker cron error");
+      }
+    },
+    { timezone: config.DEFAULT_TIMEZONE }
+  );
+
+  log.info("Game day checker started (12pm daily)");
 }

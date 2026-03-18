@@ -324,12 +324,20 @@ export function createTools(userId: number): Tool[] {
             type: "string",
             description: "Relevant medical info (e.g. 'asthma - uses blue inhaler')",
           },
+          favourite_teams: {
+            type: "string",
+            description: "Comma-separated favourite sports teams (e.g. 'Collingwood, Melbourne City FC, Red Bull Racing'). Used for game day alerts and morning digest sports section.",
+          },
+          telegram_id: {
+            type: "number",
+            description: "The person's Telegram user ID (numeric). Link a family member to their Telegram account so Susie knows who they are in the group chat.",
+          },
           notes: { type: "string", description: "Any other notes about this person" },
         },
         required: ["action", "name"],
       },
       handler: async (args: unknown) => {
-        const { action, name, relationship, age, notes, date_of_birth, interests, dietary, allergies, school_or_work, medical_notes } = args as {
+        const { action, name, relationship, age, notes, date_of_birth, interests, dietary, allergies, school_or_work, medical_notes, favourite_teams, telegram_id } = args as {
           action: "add" | "update" | "remove" | "list";
           name: string;
           relationship?: string;
@@ -341,9 +349,11 @@ export function createTools(userId: number): Tool[] {
           allergies?: string;
           school_or_work?: string;
           medical_notes?: string;
+          favourite_teams?: string;
+          telegram_id?: number;
         };
 
-        const opts = { relationship, age, notes, date_of_birth, interests, dietary, allergies, school_or_work, medical_notes };
+        const opts = { relationship, age, notes, date_of_birth, interests, dietary, allergies, school_or_work, medical_notes, favourite_teams, telegram_id };
 
         if (action === "list") {
           const all = listFamilyMembers(userId);
@@ -353,6 +363,8 @@ export function createTools(userId: number): Tool[] {
               const parts = [`${m.name} (${m.relationship ?? "family"}${m.age ? `, ${m.age}` : ""})`];
               if (m.date_of_birth) parts.push(`DOB: ${m.date_of_birth}`);
               if (m.interests) parts.push(`interests: ${m.interests}`);
+              if (m.favourite_teams) parts.push(`teams: ${m.favourite_teams}`);
+              if (m.telegram_id) parts.push(`telegram: ${m.telegram_id}`);
               return parts.join(" — ");
             })
             .join("\n");
