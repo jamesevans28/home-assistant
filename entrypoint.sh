@@ -16,6 +16,13 @@ if [ -d ".git" ]; then
   git config --global http.sslVerify false
 fi
 
+# Set up git credentials from GITHUB_TOKEN if available
+if [ -n "$GITHUB_TOKEN" ] && [ -n "$GITHUB_REPO_URL" ] && [ -d ".git" ]; then
+  # Rewrite remote URL to include token for private repo access
+  AUTH_URL=$(echo "$GITHUB_REPO_URL" | sed "s|https://|https://${GITHUB_TOKEN}@|")
+  git remote set-url origin "$AUTH_URL" 2>/dev/null || true
+fi
+
 # Auto-update from GitHub FIRST (before anything else)
 if [ -n "$GITHUB_REPO_URL" ] && [ -d ".git" ]; then
   echo "Checking for updates..."

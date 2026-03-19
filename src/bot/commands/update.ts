@@ -22,8 +22,18 @@ export async function updateCommand(ctx: CommandContext<Context>) {
   await ctx.reply("Updating... pulling latest code from GitHub.");
 
   try {
+    // Set up auth for private repo using GITHUB_TOKEN
+    const token = process.env.GITHUB_TOKEN ?? "";
+    const authUrl = config.GITHUB_REPO_URL
+      ? config.GITHUB_REPO_URL.replace("https://", `https://${token}@`)
+      : "";
+
+    const cmds = ["git config --global http.sslVerify false"];
+    if (authUrl) cmds.push(`git remote set-url origin '${authUrl}'`);
+    cmds.push("git pull origin main", "npm install", "npm run build");
+
     const { stdout, stderr } = await execAsync(
-      "git config --global http.sslVerify false && git pull origin main && npm install && npm run build",
+      cmds.join(" && "),
       { cwd: process.cwd(), timeout: 120_000 }
     );
 
