@@ -11,6 +11,8 @@ import { listEvents } from "../db/repositories/eventRepo.js";
 import { getTodayAndTomorrowBirthdays } from "./birthdayChecker.js";
 import { getBinWeek, getBinMessage } from "./binReminder.js";
 import { listShoppingItems } from "../db/repositories/shoppingRepo.js";
+import { getTasksDueInRange } from "../db/repositories/taskRepo.js";
+import { toISOUTC } from "../utils/dateParser.js";
 import { addDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import { chat } from "../ai/agent.js";
@@ -133,6 +135,33 @@ function fetchUpcomingEvents(userId: number, timezone: string): string {
   }
 }
 
+function fetchUpcomingTasks(timezone: string): string {
+  try {
+    const db = getDatabase();
+    const now = new Date();
+    const twoWeeksAhead = addDays(now, 14);
+    const tasks = getTasksDueInRange(toISOUTC(now), toISOUTC(twoWeeksAhead));
+
+    if (tasks.length === 0) return "No upcoming tasks.";
+
+    return tasks
+      .map((t) => {
+        const due = formatInTimeZone(new Date(t.due_at + "Z"), timezone, "EEE d MMM");
+        let assignee = "";
+        if (t.family_member_id) {
+          const member = db
+            .prepare("SELECT name FROM family_members WHERE id = ?")
+            .get(t.family_member_id) as { name: string } | undefined;
+          if (member) assignee = ` (${member.name})`;
+        }
+        return `- ${t.title} — due ${due}${assignee}`;
+      })
+      .join("\n");
+  } catch {
+    return "Could not fetch tasks.";
+  }
+}
+
 function getBirthdayContext(userId: number, timezone: string): string {
   const { today, tomorrow } = getTodayAndTomorrowBirthdays(userId, timezone);
   const lines: string[] = [];
@@ -205,6 +234,8 @@ export async function sendMorningDigest(bot: Bot) {
       ? getBinMessage(getBinWeek(new Date(), timezone))
       : null;
 
+  const upcomingTasks = fetchUpcomingTasks(timezone);
+
   // Build the context for the AI to compose a nice digest
   const digestPrompt = `You are composing the morning briefing for the family group chat. Today is ${today}.
 
@@ -212,10 +243,11 @@ Here is all the raw data — synthesize it into a friendly, scannable morning di
 
 FORMAT RULES:
 - Start with a greeting and the date
-- Use these sections with emoji headers: ☀️ Weather, 📅 Today's Schedule, 📆 Coming Up This Week, ✅ Reminders, 📧 Email Summary, 🏈 Sports & News
+- Use these sections with emoji headers: ☀️ Weather, 📅 Today's Schedule, 📆 Coming Up This Week, ✅ Reminders, 📋 Tasks Due Soon, 📧 Email Summary, 🏈 Sports & News
 - If there are any birthdays today or tomorrow, add a 🎂 Birthdays section right after the greeting — make it celebratory!
 - If there is bin information, include a 🗑️ Bins Tonight section and mention what goes out
 - If there are items on the shopping list, include a 🛒 Shopping List section
+- If there are upcoming tasks, include a 📋 Tasks Due Soon section with deadlines and assignees
 - Keep each section brief — bullet points, not paragraphs
 - For emails: highlight anything that looks important or needs action (school notices, bills, appointments). Skip obvious spam/marketing
 - For the Sports & News section: Search for the latest AFL, F1, and NBL news and scores. Also include any MAJOR trending Australian or world news headlines that are breaking or trending right now
@@ -244,6 +276,7 @@ BIRTHDAYS:
 ${birthdayContext || "No birthdays today or tomorrow."}
 ${binContext ? `\nBINS TONIGHT:\n${binContext}` : ""}
 ${shoppingContext ? `\nSHOPPING LIST:\n${shoppingContext}` : ""}
+${upcomingTasks !== "No upcoming tasks." ? `\nTASKS DUE SOON (next 2 weeks):\n${upcomingTasks}` : ""}
 
 FAMILY: ${familyContext || "No family members registered yet."}
 

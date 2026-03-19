@@ -10,6 +10,7 @@ import { checkBirthdays } from "./birthdayChecker.js";
 import { sendBinReminder } from "./binReminder.js";
 import { checkGameDay } from "./gameDayChecker.js";
 import { scheduleRandomCheckin } from "./profileCheckin.js";
+import { processTaskMilestones } from "./taskService.js";
 
 export function startScheduler(bot: Bot) {
   const config = getConfig();
@@ -128,4 +129,15 @@ export function startScheduler(bot: Bot) {
   );
 
   log.info("Profile check-in started (1-6pm daily, random)");
+
+  // Task milestone checker — every 15 minutes
+  cron.schedule("*/15 * * * *", async () => {
+    try {
+      await processTaskMilestones(bot);
+    } catch (err) {
+      log.error({ err }, "Task milestone cron error");
+    }
+  });
+
+  log.info("Task milestone checker started (every 15m)");
 }

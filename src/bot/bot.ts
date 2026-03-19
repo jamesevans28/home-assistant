@@ -9,6 +9,7 @@ import { scheduleCommand } from "./commands/schedule.js";
 import { familyCommand } from "./commands/family.js";
 import { updateCommand } from "./commands/update.js";
 import { googleCommand, handleGoogleAuthCode } from "./commands/google.js";
+import { createDigestCommand } from "./commands/digest.js";
 import { chatHandler } from "./handlers/chat.js";
 
 export function createBot(): Bot {
@@ -36,6 +37,7 @@ export function createBot(): Bot {
   bot.command("family", familyCommand);
   bot.command("update", updateCommand);
   bot.command("google", googleCommand);
+  bot.command("digest", createDigestCommand(bot));
 
   // Default: check for Google auth code first, then AI chat
   bot.on("message:text", async (ctx) => {

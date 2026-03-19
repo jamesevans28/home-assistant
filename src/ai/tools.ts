@@ -34,6 +34,11 @@ import {
   getMealHistory,
   getMealsWithLastCooked,
 } from "../db/repositories/mealRepo.js";
+import {
+  createTask,
+  listTasks,
+  completeTask,
+} from "../db/repositories/taskRepo.js";
 import { parseNaturalDate, toISOUTC } from "../utils/dateParser.js";
 import { formatInTimeZone } from "date-fns-tz";
 
@@ -761,6 +766,126 @@ Rules:
         }
 
         return "Unknown action.";
+      },
+    },
+
+    {
+      name: "create_task",
+      description:
+        "Create a task with a due date and optional assignment to a family member. Tasks get milestone reminders as the due date approaches (1 month, 2 weeks, 1 week, 3 days, 1 day, and on the day). Use for things that need to be done by a deadline.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "What needs to be done" },
+          description: { type: "string", description: "Additional details about the task" },
+          due_at: {
+            type: "string",
+            description: "When the task is due. Natural language like 'next Friday' or 'April 15' or ISO 8601.",
+          },
+          assigned_to: {
+            type: "string",
+            description: "Name of the family member to assign this task to",
+          },
+        },
+        required: ["title", "due_at"],
+      },
+      handler: async (args: unknown) => {
+        const { title, description, due_at, assigned_to } = args as {
+          title: string;
+          description?: string;
+          due_at: string;
+          assigned_to?: string;
+        };
+
+        let dueDate = parseNaturalDate(due_at, timezone);
+        if (!dueDate) {
+          dueDate = new Date(due_at);
+          if (isNaN(dueDate.getTime())) {
+            return `Could not understand the date "${due_at}". Please try again with a clearer date.`;
+          }
+        }
+
+        let familyMemberId: number | undefined;
+        if (assigned_to) {
+          const member = findFamilyMemberByName(userId, assigned_to);
+          if (member) familyMemberId = member.id;
+        }
+
+        const task = createTask(userId, title, toISOUTC(dueDate), {
+          description,
+          familyMemberId,
+        });
+
+        const formattedDate = formatInTimeZone(dueDate, timezone, "EEEE d MMM yyyy");
+        return `Task created: "${title}" — due ${formattedDate}${assigned_to ? ` (assigned to ${assigned_to})` : ""}. ID: ${task.id}\n\nYou'll get reminders at: 1 month, 2 weeks, 1 week, 3 days, 1 day before, and on the day.`;
+      },
+    },
+
+    {
+      name: "list_tasks",
+      description:
+        "List tasks. Use when the user asks about tasks, things to do, deadlines, or what's due.",
+      parameters: {
+        type: "object",
+        properties: {
+          assigned_to: { type: "string", description: "Filter by family member name" },
+          include_completed: { type: "boolean", description: "Whether to include completed tasks" },
+        },
+      },
+      handler: async (args: unknown) => {
+        const { assigned_to, include_completed } = args as {
+          assigned_to?: string;
+          include_completed?: boolean;
+        };
+
+        let familyMemberId: number | undefined;
+        if (assigned_to) {
+          const member = findFamilyMemberByName(userId, assigned_to);
+          if (member) familyMemberId = member.id;
+        }
+
+        const tasks = listTasks(userId, {
+          familyMemberId,
+          includeCompleted: include_completed,
+        });
+
+        if (tasks.length === 0) return "No tasks found.";
+
+        return tasks
+          .map((t) => {
+            const due = formatInTimeZone(new Date(t.due_at + "Z"), timezone, "EEE d MMM yyyy");
+            const status = t.is_completed ? " [done]" : "";
+            let assignee = "";
+            if (t.family_member_id) {
+              const db = getDatabase();
+              const member = db
+                .prepare("SELECT name FROM family_members WHERE id = ?")
+                .get(t.family_member_id) as { name: string } | undefined;
+              if (member) assignee = ` (${member.name})`;
+            }
+            return `- [${t.id}] ${t.title} — due ${due}${assignee}${status}`;
+          })
+          .join("\n");
+      },
+    },
+
+    {
+      name: "complete_task",
+      description:
+        "Mark a task as completed. Use when someone says they've finished a task or it's done.",
+      parameters: {
+        type: "object",
+        properties: {
+          task_id: { type: "number", description: "The ID of the task to complete" },
+        },
+        required: ["task_id"],
+      },
+      handler: async (args: unknown) => {
+        const { task_id } = args as { task_id: number };
+        const success = completeTask(task_id, userId);
+        return success
+          ? `Task ${task_id} marked as done.`
+          : `Could not find task ${task_id}.`;
       },
     },
   ];

@@ -8,6 +8,7 @@ export function helpCommand(ctx: CommandContext<Context>) {
       `/schedule — View today's schedule\n` +
       `/family — Manage family members\n` +
       `/google — Connect Google Calendar & Gmail\n` +
+      `/digest — Re-send the morning digest (admin only)\n` +
       `/update — Self-update from GitHub (admin only)\n` +
       `/help — Show this message\n\n` +
       `Or just chat with me naturally!`
