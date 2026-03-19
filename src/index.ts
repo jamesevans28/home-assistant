@@ -17,7 +17,7 @@ function getVersion(): string {
 
 async function notifyUpdateIfNeeded(
   bot: ReturnType<typeof createBot>,
-  log: ReturnType<typeof initLogger>
+  log: ReturnType<typeof initLogger>,
 ) {
   const flagPath = "/tmp/openclaw-updated";
   if (!existsSync(flagPath)) return;
@@ -29,10 +29,7 @@ async function notifyUpdateIfNeeded(
   const version = getVersion();
 
   try {
-    await bot.api.sendMessage(
-      chatId,
-      `🤖 OpenClaw has been updated to v${version}`
-    );
+    await bot.api.sendMessage(chatId, `🤖 Susie has been updated to v${version}`);
     log.info({ version, chatId }, "Sent update notification");
   } catch (err) {
     log.error({ err }, "Failed to send update notification");
@@ -73,14 +70,16 @@ async function main() {
   process.on("SIGTERM", shutdown);
 
   // Start bot (don't await — bot.start() resolves when bot stops)
-  bot.start({
-    onStart: async (info) => {
-      log.info({ username: info.username }, "OpenClaw bot is running");
-      await notifyUpdateIfNeeded(bot, log);
-    },
-  }).catch((err) => {
-    log.error({ err }, "Bot polling error");
-  });
+  bot
+    .start({
+      onStart: async (info) => {
+        log.info({ username: info.username }, "OpenClaw bot is running");
+        await notifyUpdateIfNeeded(bot, log);
+      },
+    })
+    .catch((err) => {
+      log.error({ err }, "Bot polling error");
+    });
 }
 
 main().catch((err) => {
