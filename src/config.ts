@@ -44,14 +44,23 @@ export function getConfig(): Config {
   return _config;
 }
 
+// Hardcoded allowed users (move to ALLOWED_TELEGRAM_IDS env var later)
+const HARDCODED_ALLOWED_IDS = [
+  8275392588, // James
+  8696245346, // Kristy
+];
+
 /**
  * Check if a Telegram user ID is allowed to use the bot.
- * If ALLOWED_TELEGRAM_IDS is empty, only the admin is allowed.
- * The admin is always allowed regardless.
+ * The admin is always allowed. Hardcoded IDs are always allowed.
+ * If ALLOWED_TELEGRAM_IDS env var is set, those are also allowed.
  */
 export function isAllowedUser(telegramId: number): boolean {
   const config = getConfig();
   if (telegramId === config.ADMIN_TELEGRAM_ID) return true;
-  if (config.ALLOWED_TELEGRAM_IDS.length === 0) return true; // No allowlist = open
-  return config.ALLOWED_TELEGRAM_IDS.includes(telegramId);
+  if (HARDCODED_ALLOWED_IDS.includes(telegramId)) return true;
+  if (config.ALLOWED_TELEGRAM_IDS.length > 0) {
+    return config.ALLOWED_TELEGRAM_IDS.includes(telegramId);
+  }
+  return false;
 }
