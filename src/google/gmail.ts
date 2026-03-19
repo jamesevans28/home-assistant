@@ -101,6 +101,14 @@ function extractPartByMime(
   }
 
   for (const part of payload.parts ?? []) {
+    // Handle forwarded messages (message/rfc822) — they contain a nested payload
+    if (part.mimeType === "message/rfc822" && part.parts) {
+      for (const nestedPart of part.parts) {
+        const found = extractPartByMime(nestedPart, mimeType);
+        if (found) return found;
+      }
+    }
+
     // Recurse into multipart parts
     const found = extractPartByMime(part, mimeType);
     if (found) return found;
