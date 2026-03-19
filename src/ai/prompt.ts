@@ -33,7 +33,7 @@ interface Event {
   family_member_name: string | null;
 }
 
-export async function buildSystemPrompt(userId: number): Promise<string> {
+export async function buildSystemPrompt(userId: number, telegramId?: number): Promise<string> {
   const db = getDatabase();
 
   // Get user info
@@ -76,9 +76,20 @@ export async function buildSystemPrompt(userId: number): Promise<string> {
     )
     .all(userId) as Reminder[];
 
+  // Identify the current speaker from their telegram ID
+  let currentSpeakerInfo = "";
+  if (telegramId) {
+    const matchedMember = family.find((m) => m.telegram_id === telegramId);
+    if (matchedMember) {
+      currentSpeakerInfo = `\nThe person you are currently talking to is ${matchedMember.name} (${matchedMember.relationship ?? "family member"}, telegram_id: ${telegramId}). Use their profile info to personalise your responses.\n`;
+    } else {
+      currentSpeakerInfo = `\nThe current speaker's Telegram ID is ${telegramId}. You don't have a family member profile linked to this ID yet.\n`;
+    }
+  }
+
   let prompt = `You are Susie, a personal home and life assistant for ${userName}'s family.
 You communicate via Telegram. Be concise, warm, and helpful.
-
+${currentSpeakerInfo}
 Current date/time: ${now}
 User timezone: ${timezone}
 

@@ -56,7 +56,7 @@ export async function initAgent(): Promise<CopilotClient> {
 async function createSession(userId: number, telegramId: number): Promise<SessionEntry> {
   if (!_client) throw new Error("Agent not initialized. Call initAgent() first.");
 
-  const systemPrompt = await buildSystemPrompt(userId);
+  const systemPrompt = await buildSystemPrompt(userId, telegramId);
   const tools = createTools(userId);
 
   const db = getDatabase();
