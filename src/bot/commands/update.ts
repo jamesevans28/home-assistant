@@ -23,7 +23,7 @@ export async function updateCommand(ctx: CommandContext<Context>) {
 
   try {
     const { stdout, stderr } = await execAsync(
-      "git pull origin main && npm install && npm run build",
+      "git config --global http.sslVerify false && git pull origin main && npm install && npm run build",
       { cwd: process.cwd(), timeout: 120_000 }
     );
 

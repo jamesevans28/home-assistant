@@ -10,9 +10,10 @@ if [ -d "src/db/migrations" ] && [ ! -e "migrations" ]; then
   echo "Created migrations symlink"
 fi
 
-# Mark git directory as safe (mounted volume ownership may differ)
+# Git config — safe directory + disable SSL verify (Synology CA certs issue)
 if [ -d ".git" ]; then
   git config --global --add safe.directory /app
+  git config --global http.sslVerify false
 fi
 
 # Auto-update from GitHub FIRST (before anything else)
