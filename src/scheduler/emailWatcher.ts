@@ -13,6 +13,7 @@ import {
   listShoppingItems,
   removeShoppingItemByName,
 } from "../db/repositories/shoppingRepo.js";
+import { saveSchoolEmail } from "../db/repositories/schoolEmailRepo.js";
 
 interface EmailRule {
   name: string;
@@ -185,6 +186,21 @@ Output the summary first, then a line "---EVENTS---", then the events section.`;
               "Created school event and reminder"
             );
           }
+        }
+
+        // Persist email content for future Q&A (6-month retention)
+        try {
+          saveSchoolEmail({
+            gmailId: email.id,
+            subject: email.subject,
+            receivedAt: new Date(email.date).toISOString(),
+            bodyText: email.body.slice(0, 5000),
+            linkedPageText: pageContent || undefined,
+            aiSummary: summaryPart?.trim() || undefined,
+          });
+          log.info({ id: email.id }, "Saved school email for future reference");
+        } catch (saveErr) {
+          log.warn({ err: saveErr, id: email.id }, "Failed to save school email content");
         }
       },
     },

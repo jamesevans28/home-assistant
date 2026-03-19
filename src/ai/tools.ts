@@ -39,6 +39,10 @@ import {
   listTasks,
   completeTask,
 } from "../db/repositories/taskRepo.js";
+import {
+  searchSchoolEmails,
+  listRecentSchoolEmails,
+} from "../db/repositories/schoolEmailRepo.js";
 import { parseNaturalDate, toISOUTC } from "../utils/dateParser.js";
 import { formatInTimeZone } from "date-fns-tz";
 
@@ -886,6 +890,77 @@ Rules:
         return success
           ? `Task ${task_id} marked as done.`
           : `Could not find task ${task_id}.`;
+      },
+    },
+
+    {
+      name: "search_school_emails",
+      description:
+        "Search stored Bentleigh West Primary School emails (last 6 months). Use when the user asks about school events, dates, NAPLAN, athletics, pupil-free days, term dates, school weeks, excursions, assemblies, or anything school-related. Can search by keyword or list recent emails.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description:
+              "Keywords to search for in school emails (e.g. 'athletics', 'NAPLAN', 'pupil free day', 'term dates'). Leave empty to list recent emails.",
+          },
+          from_date: {
+            type: "string",
+            description: "Start date for search range (natural language or ISO 8601). Optional.",
+          },
+          to_date: {
+            type: "string",
+            description: "End date for search range. Optional.",
+          },
+        },
+      },
+      handler: async (args: unknown) => {
+        const { query, from_date, to_date } = args as {
+          query?: string;
+          from_date?: string;
+          to_date?: string;
+        };
+
+        let fromDate: string | undefined;
+        let toDate: string | undefined;
+        if (from_date) {
+          const d = parseNaturalDate(from_date, timezone);
+          if (d) fromDate = toISOUTC(d);
+        }
+        if (to_date) {
+          const d = parseNaturalDate(to_date, timezone);
+          if (d) toDate = toISOUTC(d);
+        }
+
+        const results = query?.trim()
+          ? searchSchoolEmails(query.trim(), { fromDate, toDate, limit: 10 })
+          : listRecentSchoolEmails(10);
+
+        if (results.length === 0) {
+          return query
+            ? `No school emails found matching "${query}". Try different keywords or a broader date range.`
+            : "No school emails stored yet.";
+        }
+
+        return results
+          .map((e) => {
+            const date = formatInTimeZone(
+              new Date(e.received_at),
+              timezone,
+              "EEE d MMM yyyy"
+            );
+            let entry = `[${date}] ${e.subject}`;
+            if (e.ai_summary) entry += `\nSummary: ${e.ai_summary}`;
+            if (query && e.body_text) {
+              entry += `\nDetails: ${e.body_text.slice(0, 500)}`;
+            }
+            if (query && e.linked_page_text) {
+              entry += `\nPage content: ${e.linked_page_text.slice(0, 500)}`;
+            }
+            return entry;
+          })
+          .join("\n\n---\n\n");
       },
     },
   ];

@@ -11,6 +11,7 @@ import { sendBinReminder } from "./binReminder.js";
 import { checkGameDay } from "./gameDayChecker.js";
 import { scheduleRandomCheckin } from "./profileCheckin.js";
 import { processTaskMilestones } from "./taskService.js";
+import { deleteExpiredSchoolEmails } from "../db/repositories/schoolEmailRepo.js";
 
 export function startScheduler(bot: Bot) {
   const config = getConfig();
@@ -140,4 +141,22 @@ export function startScheduler(bot: Bot) {
   });
 
   log.info("Task milestone checker started (every 15m)");
+
+  // School email cleanup — delete emails older than 6 months
+  cron.schedule(
+    "0 3 * * *",
+    () => {
+      try {
+        const deleted = deleteExpiredSchoolEmails();
+        if (deleted > 0) {
+          log.info({ deleted }, "Cleaned up expired school emails");
+        }
+      } catch (err) {
+        log.error({ err }, "School email cleanup cron error");
+      }
+    },
+    { timezone: config.DEFAULT_TIMEZONE }
+  );
+
+  log.info("School email cleanup started (3am daily)");
 }
