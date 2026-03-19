@@ -12,6 +12,11 @@ import { getTodayAndTomorrowBirthdays } from "./birthdayChecker.js";
 import { getBinWeek, getBinMessage } from "./binReminder.js";
 import { listShoppingItems } from "../db/repositories/shoppingRepo.js";
 import { getTasksDueInRange } from "../db/repositories/taskRepo.js";
+import {
+  getFixturesForFavouriteTeams,
+  getRecentResults,
+  formatFixture,
+} from "../db/repositories/fixtureRepo.js";
 import { toISOUTC } from "../utils/dateParser.js";
 import { addDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
@@ -236,6 +241,25 @@ export async function sendMorningDigest(bot: Bot) {
 
   const upcomingTasks = fetchUpcomingTasks(timezone);
 
+  // Get sports fixtures from DB
+  const todayFixtures = getFixturesForFavouriteTeams(
+    getAdminUserId(),
+    new Date().toISOString(),
+    timezone
+  );
+  const todayFixturesContext = todayFixtures.length > 0
+    ? todayFixtures
+        .map((f) => `- [${f.sport}] ${formatFixture(f, timezone)} (followed by: ${f.followers.join(", ")})`)
+        .join("\n")
+    : null;
+
+  const recentResultsList = getRecentResults(undefined, 3);
+  const recentResultsContext = recentResultsList.length > 0
+    ? recentResultsList
+        .map((f) => `- [${f.sport}] ${formatFixture(f, timezone)}`)
+        .join("\n")
+    : null;
+
   // Build the context for the AI to compose a nice digest
   const digestPrompt = `You are composing the morning briefing for the family group chat. Today is ${today}.
 
@@ -277,14 +301,19 @@ ${birthdayContext || "No birthdays today or tomorrow."}
 ${binContext ? `\nBINS TONIGHT:\n${binContext}` : ""}
 ${shoppingContext ? `\nSHOPPING LIST:\n${shoppingContext}` : ""}
 ${upcomingTasks !== "No upcoming tasks." ? `\nTASKS DUE SOON (next 2 weeks):\n${upcomingTasks}` : ""}
+${todayFixturesContext ? `\nGAMES TODAY (from fixture database):\n${todayFixturesContext}` : ""}
+${recentResultsContext ? `\nRECENT RESULTS (last 3 days):\n${recentResultsContext}` : ""}
 
 FAMILY: ${familyContext || "No family members registered yet."}
+${teamsContext ? `FAMILY'S TEAMS: ${teamsContext}` : ""}
 
-IMPORTANT: For the Sports & News section, you MUST use your web search capabilities to find:
-${teamsContext ? `FAMILY'S TEAMS: ${teamsContext}\n- Search for the latest news, scores, and upcoming fixtures for each of these teams. Mention which family member follows each team.\n- If any team is playing today/tonight, highlight it!` : `- Search for the latest AFL, F1, and NBL news and scores.`}
-- Top 3-5 MAJOR trending news stories (Australian and world) — especially breaking news everyone should know about
-- Search major outlets like ABC News, news.com.au, ESPN, Fox Sports, BBC
-- Try multiple search queries — do NOT give up after one failed search.
+IMPORTANT: For the Sports & News section:
+- The GAMES TODAY and RECENT RESULTS above come from our fixture database — include them directly in the digest. Highlight which family members follow which teams. All times are in Melbourne time.
+- Additionally, use your web search to find:
+  - Latest sports NEWS (trade rumours, injury updates, talking points) for the family's teams
+  - Top 3-5 MAJOR trending news stories (Australian and world) — especially breaking news
+  - Search ABC News, news.com.au, ESPN, Fox Sports, BBC
+  - Try multiple search queries — do NOT give up after one failed search.
 
 Compose the digest now.`;
 

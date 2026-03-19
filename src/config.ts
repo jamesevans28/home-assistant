@@ -18,6 +18,8 @@ const envSchema = z.object({
   OPENWEATHER_API_KEY: z.string().optional(),
   WEATHER_LOCATION: z.string().default("Melbourne,AU"),
   EMAIL_CHECK_CRON: z.string().default("*/30 * * * *"),
+  FIXTURE_REFRESH_CRON: z.string().default("0 4 * * 1"),
+  RESULTS_REFRESH_CRON: z.string().default("0 6 * * *"),
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace"])
     .default("info"),

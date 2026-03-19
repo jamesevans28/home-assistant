@@ -12,6 +12,7 @@ import { checkGameDay } from "./gameDayChecker.js";
 import { scheduleRandomCheckin } from "./profileCheckin.js";
 import { processTaskMilestones } from "./taskService.js";
 import { deleteExpiredSchoolEmails } from "../db/repositories/schoolEmailRepo.js";
+import { refreshAllFixtures, refreshRecentResults } from "./fixtureRefresher.js";
 
 export function startScheduler(bot: Bot) {
   const config = getConfig();
@@ -159,4 +160,40 @@ export function startScheduler(bot: Bot) {
   );
 
   log.info("School email cleanup started (3am daily)");
+
+  // Fixture refresh — weekly Monday 4am (load full season schedules)
+  cron.schedule(
+    config.FIXTURE_REFRESH_CRON,
+    async () => {
+      try {
+        await refreshAllFixtures(bot);
+      } catch (err) {
+        log.error({ err }, "Fixture refresh cron error");
+      }
+    },
+    { timezone: config.DEFAULT_TIMEZONE }
+  );
+
+  log.info(
+    { cron: config.FIXTURE_REFRESH_CRON },
+    "Fixture refresh scheduler started"
+  );
+
+  // Results refresh — daily at 6am (before 6:30am digest)
+  cron.schedule(
+    config.RESULTS_REFRESH_CRON,
+    async () => {
+      try {
+        await refreshRecentResults(bot);
+      } catch (err) {
+        log.error({ err }, "Results refresh cron error");
+      }
+    },
+    { timezone: config.DEFAULT_TIMEZONE }
+  );
+
+  log.info(
+    { cron: config.RESULTS_REFRESH_CRON },
+    "Results refresh scheduler started"
+  );
 }

@@ -43,6 +43,14 @@ import {
   searchSchoolEmails,
   listRecentSchoolEmails,
 } from "../db/repositories/schoolEmailRepo.js";
+import {
+  getFixturesForDate,
+  getFixturesForTeam,
+  getUpcomingFixtures,
+  getRecentResults,
+  queryFixtures,
+  formatFixture,
+} from "../db/repositories/fixtureRepo.js";
 import { parseNaturalDate, toISOUTC } from "../utils/dateParser.js";
 import { formatInTimeZone } from "date-fns-tz";
 
@@ -961,6 +969,146 @@ Rules:
             return entry;
           })
           .join("\n\n---\n\n");
+      },
+    },
+
+    {
+      name: "sports_fixtures",
+      description:
+        "Look up sports fixtures, schedules, and results from the preloaded database. Covers AFL, NRL, F1, Super Netball. Use this FIRST instead of web searching for game times, upcoming matches, results, or fixture information. Actions: today (games today), upcoming (next games for a team/sport), results (recent results), next_game (when does a team play next), query (flexible search).",
+      parameters: {
+        type: "object",
+        properties: {
+          action: {
+            type: "string",
+            enum: ["today", "upcoming", "results", "next_game", "query"],
+            description:
+              "today: all games today. upcoming: next N games. results: recent completed games. next_game: next game for a specific team. query: flexible search.",
+          },
+          team: {
+            type: "string",
+            description: "Team name (e.g. 'Collingwood', 'Storm', 'Red Bull', 'Vixens'). Aliases are resolved automatically.",
+          },
+          sport: {
+            type: "string",
+            enum: ["AFL", "NRL", "F1", "Super Netball"],
+            description: "Filter by sport/league",
+          },
+          round: {
+            type: "string",
+            description: "Filter by round (e.g. 'Round 5', 'Finals')",
+          },
+          date: {
+            type: "string",
+            description: "Date to check. Natural language like 'today', 'Saturday', 'next week' or ISO 8601.",
+          },
+          limit: {
+            type: "number",
+            description: "Max results. Default 10.",
+          },
+        },
+        required: ["action"],
+      },
+      handler: async (args: unknown) => {
+        const { action, team, sport, round, date, limit = 10 } = args as {
+          action: "today" | "upcoming" | "results" | "next_game" | "query";
+          team?: string;
+          sport?: string;
+          round?: string;
+          date?: string;
+          limit?: number;
+        };
+
+        if (action === "today") {
+          const todayStr = new Date().toISOString();
+          const fixtures = getFixturesForDate(todayStr, timezone);
+          if (fixtures.length === 0) return "No games scheduled for today in the database.";
+
+          let filtered = fixtures;
+          if (team) {
+            const search = team.toLowerCase();
+            filtered = fixtures.filter(
+              (f) =>
+                f.home_team?.toLowerCase().includes(search) ||
+                f.away_team?.toLowerCase().includes(search) ||
+                f.event_name?.toLowerCase().includes(search)
+            );
+          }
+          if (sport) {
+            filtered = filtered.filter((f) => f.sport.toUpperCase() === sport.toUpperCase());
+          }
+
+          if (filtered.length === 0) return "No matching games today.";
+
+          return `Games today:\n${filtered.map((f) => `- [${f.sport}] ${formatFixture(f, timezone)}`).join("\n")}`;
+        }
+
+        if (action === "upcoming") {
+          if (team) {
+            const fixtures = getFixturesForTeam(team, { upcoming: true, limit });
+            if (fixtures.length === 0) return `No upcoming games found for "${team}".`;
+            return `Upcoming games for ${team}:\n${fixtures.map((f) => `- [${f.sport}] ${formatFixture(f, timezone)}`).join("\n")}`;
+          }
+
+          if (sport) {
+            const fixtures = getUpcomingFixtures(sport, limit);
+            if (fixtures.length === 0) return `No upcoming ${sport} fixtures.`;
+            return `Upcoming ${sport} fixtures:\n${fixtures.map((f) => `- ${formatFixture(f, timezone)}`).join("\n")}`;
+          }
+
+          return "Please specify a team or sport to see upcoming fixtures.";
+        }
+
+        if (action === "results") {
+          const results = getRecentResults(sport ?? undefined, 7);
+          if (results.length === 0) return "No recent results found.";
+
+          let filtered = results;
+          if (team) {
+            const search = team.toLowerCase();
+            filtered = results.filter(
+              (f) =>
+                f.home_team?.toLowerCase().includes(search) ||
+                f.away_team?.toLowerCase().includes(search) ||
+                f.event_name?.toLowerCase().includes(search)
+            );
+          }
+
+          if (filtered.length === 0) return `No recent results for "${team}".`;
+
+          return `Recent results:\n${filtered.map((f) => `- [${f.sport}] ${formatFixture(f, timezone)}`).join("\n")}`;
+        }
+
+        if (action === "next_game") {
+          if (!team) return "Please specify a team to find their next game.";
+          const fixtures = getFixturesForTeam(team, { upcoming: true, limit: 1 });
+          if (fixtures.length === 0) return `No upcoming games found for "${team}".`;
+
+          const f = fixtures[0];
+          return `Next game for ${team}:\n${formatFixture(f, timezone)}`;
+        }
+
+        if (action === "query") {
+          const fromDate = date
+            ? (() => {
+                const d = parseNaturalDate(date, timezone);
+                return d ? d.toISOString() : date;
+              })()
+            : undefined;
+
+          const fixtures = queryFixtures({
+            sport,
+            team,
+            fromDate,
+            round,
+            limit,
+          });
+
+          if (fixtures.length === 0) return "No fixtures found matching your query.";
+          return `Fixtures:\n${fixtures.map((f) => `- [${f.sport}] ${formatFixture(f, timezone)}`).join("\n")}`;
+        }
+
+        return "Unknown action. Use: today, upcoming, results, next_game, or query.";
       },
     },
   ];
