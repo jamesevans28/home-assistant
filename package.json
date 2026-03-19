@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "postinstall": "node scripts/fix-vscode-jsonrpc.js",
-    "build": "esbuild src/index.ts --bundle --platform=node --target=es2022 --format=esm --outdir=dist --external:better-sqlite3 --external:@github/copilot-sdk --external:grammy --banner:js=\"import{createRequire as __cr}from'module';import{fileURLToPath as __fu}from'url';import{dirname as __dn}from'path';const require=__cr(import.meta.url);const __filename=__fu(import.meta.url);const __dirname=__dn(__filename);\"",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=es2022 --format=esm --outdir=dist --external:better-sqlite3 --external:@github/copilot-sdk --external:grammy --external:pino --external:pino-pretty --banner:js=\"import{createRequire as __cr}from'module';import{fileURLToPath as __fu}from'url';import{dirname as __dn}from'path';const require=__cr(import.meta.url);const __filename=__fu(import.meta.url);const __dirname=__dn(__filename);\"",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts"
   },
