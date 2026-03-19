@@ -1,6 +1,6 @@
 {
   "name": "houseofevans-assistant",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "House of Evans — Personal home & life assistant via Telegram",
   "type": "module",
   "scripts": {

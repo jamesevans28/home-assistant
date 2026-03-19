@@ -205,14 +205,15 @@ export async function sendMorningDigest(bot: Bot) {
   log.info("Generating morning digest...");
 
   // Gather all data in parallel
+  const hasWeatherKey = !!config.OPENWEATHER_API_KEY;
   const [weather, forecast, calendarEvents, emails, localReminders, upcomingEvents] =
     await Promise.all([
-      config.OPENWEATHER_API_KEY
-        ? fetchWeather(config.OPENWEATHER_API_KEY, config.WEATHER_LOCATION)
-        : "Weather not configured (set OPENWEATHER_API_KEY).",
-      config.OPENWEATHER_API_KEY
-        ? fetchForecast(config.OPENWEATHER_API_KEY, config.WEATHER_LOCATION)
-        : "",
+      hasWeatherKey
+        ? fetchWeather(config.OPENWEATHER_API_KEY!, config.WEATHER_LOCATION)
+        : Promise.resolve(null),
+      hasWeatherKey
+        ? fetchForecast(config.OPENWEATHER_API_KEY!, config.WEATHER_LOCATION)
+        : Promise.resolve(null),
       fetchCalendarEvents(timezone),
       fetchImportantEmails(timezone),
       Promise.resolve(fetchLocalReminders(getAdminUserId(), timezone)),
@@ -241,7 +242,7 @@ export async function sendMorningDigest(bot: Bot) {
 
   const upcomingTasks = fetchUpcomingTasks(timezone);
 
-  // Get sports fixtures from DB
+  // Get favourite teams' fixtures for today from DB
   const todayFixtures = getFixturesForFavouriteTeams(
     getAdminUserId(),
     new Date().toISOString(),
@@ -261,59 +262,65 @@ export async function sendMorningDigest(bot: Bot) {
     : null;
 
   // Build the context for the AI to compose a nice digest
-  const digestPrompt = `You are composing the morning briefing for the family group chat. Today is ${today}.
+  // Only include sections that have real data
+  const sections: string[] = [];
 
-Here is all the raw data — synthesize it into a friendly, scannable morning digest message. Use emoji headers for each section. Be concise but informative.
+  if (weather) {
+    sections.push(`WEATHER:\n${weather}${forecast ? `\nForecast: ${forecast}` : ""}`);
+  }
 
-FORMAT RULES:
-- Start with a greeting and the date
-- Use these sections with emoji headers: ☀️ Weather, 📅 Today's Schedule, 📆 Coming Up This Week, ✅ Reminders, 📋 Tasks Due Soon, 📧 Email Summary, 🏈 Sports & News
-- If there are any birthdays today or tomorrow, add a 🎂 Birthdays section right after the greeting — make it celebratory!
-- If there is bin information, include a 🗑️ Bins Tonight section and mention what goes out
-- If there are items on the shopping list, include a 🛒 Shopping List section
-- If there are upcoming tasks, include a 📋 Tasks Due Soon section with deadlines and assignees
-- Keep each section brief — bullet points, not paragraphs
-- For emails: highlight anything that looks important or needs action (school notices, bills, appointments). Skip obvious spam/marketing
-- For the Sports & News section: Search for the latest AFL, F1, and NBL news and scores. Also include any MAJOR trending Australian or world news headlines that are breaking or trending right now
-- End with a motivational or fun note for the day
-- If a section has no data, skip it or note it briefly
+  sections.push(`CALENDAR EVENTS:\n${calendarEvents}`);
+  sections.push(`REMINDERS DUE TODAY:\n${localReminders}`);
+  sections.push(`UPCOMING EVENTS (next 7 days):\n${upcomingEvents}`);
+  sections.push(`EMAILS (last 24h, unread):\n${emails}`);
+
+  if (birthdayContext) sections.push(`BIRTHDAYS:\n${birthdayContext}`);
+  if (binContext) sections.push(`BINS TONIGHT:\n${binContext}`);
+  if (shoppingContext) sections.push(`SHOPPING LIST:\n${shoppingContext}`);
+  if (upcomingTasks !== "No upcoming tasks.") sections.push(`TASKS DUE SOON (next 2 weeks):\n${upcomingTasks}`);
+
+  if (todayFixturesContext) {
+    sections.push(`OUR TEAMS PLAYING TODAY (from fixture database — REAL data, present directly):\n${todayFixturesContext}`);
+  }
+
+  if (recentResultsContext) {
+    sections.push(`RECENT RESULTS (last 3 days — REAL data from our database):\n${recentResultsContext}`);
+  }
+
+  if (familyContext) sections.push(`FAMILY: ${familyContext}`);
+  if (teamsContext) sections.push(`FAMILY'S TEAMS: ${teamsContext}`);
+
+  const digestPrompt = `You are Susie, composing the morning briefing for the family group chat. Today is ${today}.
+
+Here is all the raw data — synthesize it into a friendly, scannable morning digest message.
+
+CRITICAL RULES:
+- ONLY include sections where you have REAL data. Do NOT invent data, do NOT link to websites as a substitute for data, do NOT say "check this website for details".
+- If data is missing for a section, just SKIP it entirely. Do not mention it at all.
+- NEVER include a section that just says "check X website" — that is useless.
+- Sports fixtures and results below are REAL data from our database — present them directly with times, teams, and venues. Do NOT replace this with website links.
+- Keep each section brief — bullet points, not paragraphs.
+- Start with a greeting and the date.
+
+SECTION FORMAT:
+- 🎂 Birthdays (only if birthdays today/tomorrow — make it celebratory!)
+${weather ? "- ☀️ Weather" : ""}
+- 📅 Today's Schedule
+- 📆 Coming Up This Week (only if there are events)
+- ✅ Reminders
+- 📋 Tasks Due Soon (only if there are tasks)
+- 📧 Email Highlights (only important/actionable emails — skip spam/marketing)
+- 🏈 Our Teams Today (only if family's favourite teams are playing — include times, opponents, venues directly from the data)
+- 🏆 Recent Results (only if results data exists — show scores directly)
+${binContext ? "- 🗑️ Bins Tonight" : ""}
+${shoppingContext ? "- 🛒 Shopping List" : ""}
+- End with a motivational or fun note
 
 RAW DATA:
 
-WEATHER:
-${weather}
-${forecast ? `Forecast: ${forecast}` : ""}
+${sections.join("\n\n")}
 
-CALENDAR EVENTS:
-${calendarEvents}
-
-REMINDERS DUE TODAY:
-${localReminders}
-
-UPCOMING EVENTS (next 7 days):
-${upcomingEvents}
-
-EMAILS (last 24h, unread):
-${emails}
-
-BIRTHDAYS:
-${birthdayContext || "No birthdays today or tomorrow."}
-${binContext ? `\nBINS TONIGHT:\n${binContext}` : ""}
-${shoppingContext ? `\nSHOPPING LIST:\n${shoppingContext}` : ""}
-${upcomingTasks !== "No upcoming tasks." ? `\nTASKS DUE SOON (next 2 weeks):\n${upcomingTasks}` : ""}
-${todayFixturesContext ? `\nGAMES TODAY (from fixture database):\n${todayFixturesContext}` : ""}
-${recentResultsContext ? `\nRECENT RESULTS (last 3 days):\n${recentResultsContext}` : ""}
-
-FAMILY: ${familyContext || "No family members registered yet."}
-${teamsContext ? `FAMILY'S TEAMS: ${teamsContext}` : ""}
-
-IMPORTANT: For the Sports & News section:
-- The GAMES TODAY and RECENT RESULTS above come from our fixture database — include them directly in the digest. Highlight which family members follow which teams. All times are in Melbourne time.
-- Additionally, use your web search to find:
-  - Latest sports NEWS (trade rumours, injury updates, talking points) for the family's teams
-  - Top 3-5 MAJOR trending news stories (Australian and world) — especially breaking news
-  - Search ABC News, news.com.au, ESPN, Fox Sports, BBC
-  - Try multiple search queries — do NOT give up after one failed search.
+IMPORTANT for News: Use web search to find 3-5 MAJOR trending Australian/world news headlines. Search ABC News, news.com.au, BBC. Include actual headlines with brief descriptions — NOT just "check this website". Try multiple search queries. If you truly cannot find news, skip the section entirely.
 
 Compose the digest now.`;
 
@@ -334,20 +341,13 @@ Compose the digest now.`;
 
     // Send a fallback basic digest without AI
     try {
-      const fallback = `☀️ *Morning Digest — ${today}*
-
-*Weather:* ${weather}
-
-*📅 Calendar:*
-${calendarEvents}
-
-*✅ Reminders:*
-${localReminders}
-
-*📧 Emails:*
-${emails.slice(0, 500)}
-
-_AI summary unavailable — showing raw data_`;
+      const fallbackParts = [`*Morning Digest — ${today}*`];
+      if (weather) fallbackParts.push(`☀️ *Weather:* ${weather}`);
+      fallbackParts.push(`*📅 Calendar:*\n${calendarEvents}`);
+      fallbackParts.push(`*✅ Reminders:*\n${localReminders}`);
+      fallbackParts.push(`*📧 Emails:*\n${emails.slice(0, 500)}`);
+      fallbackParts.push(`_AI summary unavailable — showing raw data_`);
+      const fallback = fallbackParts.join("\n\n");
 
       await bot.api
         .sendMessage(chatId, fallback, { parse_mode: "Markdown" })
