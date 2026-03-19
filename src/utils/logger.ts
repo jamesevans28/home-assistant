@@ -7,10 +7,6 @@ export function initLogger(): pino.Logger {
   const config = getConfig();
   _logger = pino({
     level: config.LOG_LEVEL,
-    transport:
-      process.env.NODE_ENV !== "production"
-        ? { target: "pino/file", options: { destination: 1 } }
-        : undefined,
   });
   return _logger;
 }
