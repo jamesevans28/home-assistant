@@ -13,13 +13,14 @@ export function startCommand(ctx: CommandContext<Context>) {
   upsertUser(from.id, name, isAdmin);
 
   return ctx.reply(
-    `Hey ${name}! I'm OpenClaw, your personal home & life assistant.\n\n` +
-      `Here's what I can do:\n` +
-      `• Chat naturally — just send me a message\n` +
-      `• Set reminders — "remind me to pick up the kids at 3pm"\n` +
-      `• Manage your schedule — "what's on today?"\n` +
-      `• Track family members — /family\n` +
-      `• Get suggestions — "suggest a dinner idea"\n\n` +
-      `Type /help for all commands.`
+    `Hey ${name}! I'm Susie, your friendly household assistant for the Evans family.\n\n` +
+      `I'm here to help keep things running smoothly! Here's a few things I can help with:\n\n` +
+      `• Just chat with me — ask me anything!\n` +
+      `• Reminders — "remind me to pick up the kids at 3pm"\n` +
+      `• Calendar — "what's on today?" or "what's happening this week?"\n` +
+      `• Family info — /family\n` +
+      `• Meal & activity ideas — "what should we have for dinner?"\n` +
+      `• Email — "check my emails" or "send an email to..."\n\n` +
+      `Just send me a message anytime — I'm always here! Type /help if you want to see all the commands.`
   );
 }

@@ -121,24 +121,6 @@ export function createWebTools(): Tool[] {
         return searchWeb(query, max_results);
       },
     },
-    {
-      name: "web_fetch",
-      description:
-        "Fetch and read the text content of a web page. Use to read full articles, news stories, or any URL. Returns plain text extracted from the page.",
-      parameters: {
-        type: "object",
-        properties: {
-          url: {
-            type: "string",
-            description: "The URL to fetch",
-          },
-        },
-        required: ["url"],
-      },
-      handler: async (args: unknown) => {
-        const { url } = args as { url: string };
-        return fetchPageText(url);
-      },
-    },
+    // web_fetch is now a built-in Copilot SDK tool — no need to define it here
   ];
 }
