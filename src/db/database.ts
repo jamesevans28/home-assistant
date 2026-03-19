@@ -39,12 +39,17 @@ function runMigrations(db: Database.Database) {
 
   // Check multiple possible locations for migrations
   const candidates = [
-    resolve(process.cwd(), "migrations"),
     resolve(process.cwd(), "src", "db", "migrations"),
+    resolve(process.cwd(), "migrations"),
   ];
   const migrationsDir = candidates.find((d) => {
     try { readdirSync(d); return true; } catch { return false; }
-  }) ?? candidates[0];
+  });
+
+  if (!migrationsDir) {
+    log.warn("No migrations directory found, skipping migrations");
+    return;
+  }
 
   const files = readdirSync(migrationsDir)
     .filter((f) => f.endsWith(".sql"))
