@@ -4,9 +4,14 @@ import { getDatabase } from "../db/database.js";
 import { getLogger } from "../utils/logger.js";
 import { addDays, addWeeks, addMonths } from "date-fns";
 import { toISOUTC } from "../utils/dateParser.js";
+import { isQuietHours } from "../utils/quietHours.js";
 
 export async function processReminders(bot: Bot) {
   const log = getLogger();
+
+  // Don't send reminders during quiet hours (10pm–6am)
+  if (isQuietHours()) return;
+
   const now = new Date();
   const nowUTC = toISOUTC(now);
 

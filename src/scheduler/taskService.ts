@@ -5,6 +5,7 @@ import { getDatabase } from "../db/database.js";
 import { getIncompleteTasks, updateMilestonesSent } from "../db/repositories/taskRepo.js";
 import { formatInTimeZone } from "date-fns-tz";
 import { differenceInCalendarDays } from "date-fns";
+import { isQuietHours } from "../utils/quietHours.js";
 
 const MILESTONES = [
   { key: "30d", days: 30, label: "1 month" },
@@ -17,6 +18,10 @@ const MILESTONES = [
 
 export async function processTaskMilestones(bot: Bot) {
   const log = getLogger();
+
+  // Don't send task reminders during quiet hours (10pm–6am)
+  if (isQuietHours()) return;
+
   const config = getConfig();
   const timezone = config.DEFAULT_TIMEZONE;
   const chatId = config.GROUP_CHAT_ID ?? config.ADMIN_TELEGRAM_ID;

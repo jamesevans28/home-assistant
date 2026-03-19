@@ -14,6 +14,7 @@ import {
   removeShoppingItemByName,
 } from "../db/repositories/shoppingRepo.js";
 import { saveSchoolEmail } from "../db/repositories/schoolEmailRepo.js";
+import { isQuietHours } from "../utils/quietHours.js";
 
 interface EmailRule {
   name: string;
@@ -313,6 +314,9 @@ function getTimezoneOffset(timezone: string): string {
 
 export async function checkEmails(bot: Bot) {
   const log = getLogger();
+
+  // Don't process/send email alerts during quiet hours (10pm–6am)
+  if (isQuietHours()) return;
 
   if (!isGoogleAuthenticated()) {
     return;
