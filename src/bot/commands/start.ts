@@ -1,11 +1,16 @@
 import { CommandContext, Context } from "grammy";
 import { upsertUser } from "../../db/repositories/userRepo.js";
-import { getConfig } from "../../config.js";
+import { getConfig, isAllowedUser } from "../../config.js";
 
 export function startCommand(ctx: CommandContext<Context>) {
   const config = getConfig();
   const from = ctx.from;
   if (!from) return;
+
+  // Only allowed users can register
+  if (!isAllowedUser(from.id)) {
+    return ctx.reply("Sorry, this bot is private. Contact the admin if you need access.");
+  }
 
   const isAdmin = from.id === config.ADMIN_TELEGRAM_ID;
   const name = from.first_name ?? from.username ?? "there";

@@ -18,6 +18,10 @@ const envSchema = z.object({
   OPENWEATHER_API_KEY: z.string().optional(),
   WEATHER_LOCATION: z.string().default("Melbourne,AU"),
   EMAIL_CHECK_CRON: z.string().default("*/30 * * * *"),
+  ALLOWED_TELEGRAM_IDS: z
+    .string()
+    .default("")
+    .transform((s) => s.split(",").map((id) => parseInt(id.trim(), 10)).filter((id) => !isNaN(id) && id > 0)),
   FIXTURE_REFRESH_CRON: z.string().default("0 4 * * 1"),
   RESULTS_REFRESH_CRON: z.string().default("0 6 * * *"),
   LOG_LEVEL: z
@@ -38,4 +42,16 @@ export function loadConfig(): Config {
 export function getConfig(): Config {
   if (!_config) throw new Error("Config not loaded. Call loadConfig() first.");
   return _config;
+}
+
+/**
+ * Check if a Telegram user ID is allowed to use the bot.
+ * If ALLOWED_TELEGRAM_IDS is empty, only the admin is allowed.
+ * The admin is always allowed regardless.
+ */
+export function isAllowedUser(telegramId: number): boolean {
+  const config = getConfig();
+  if (telegramId === config.ADMIN_TELEGRAM_ID) return true;
+  if (config.ALLOWED_TELEGRAM_IDS.length === 0) return true; // No allowlist = open
+  return config.ALLOWED_TELEGRAM_IDS.includes(telegramId);
 }

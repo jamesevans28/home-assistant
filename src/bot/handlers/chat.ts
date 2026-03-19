@@ -4,7 +4,7 @@ import { getUserByTelegramId } from "../../db/repositories/userRepo.js";
 import { saveMessage } from "../../db/repositories/messageRepo.js";
 import { splitMessage } from "../../utils/telegram.js";
 import { getLogger } from "../../utils/logger.js";
-import { getConfig } from "../../config.js";
+import { getConfig, isAllowedUser } from "../../config.js";
 
 // Track active conversations in groups: "chatId:userId" -> expiry timestamp
 // When the bot responds to someone, they can reply without @mentioning for 2 minutes
@@ -47,6 +47,9 @@ export async function chatHandler(ctx: Context) {
   const text = ctx.message?.text;
 
   if (!from || !text) return;
+
+  // Only allowed users can interact with the bot
+  if (!isAllowedUser(from.id)) return;
 
   const chatType = ctx.chat?.type;
   const isGroup = chatType === "group" || chatType === "supergroup";
