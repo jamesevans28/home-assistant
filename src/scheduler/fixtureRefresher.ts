@@ -245,6 +245,15 @@ function parseFeedFixtures(data: FeedEntry[], league: LeagueConfig, season: numb
   return fixtures;
 }
 
+/** Delete all fixtures for a sport/season so feed data replaces them cleanly */
+function clearFixturesForSport(sport: string, season: number): number {
+  const db = getDatabase();
+  const result = db.prepare(
+    "DELETE FROM sports_fixtures WHERE sport = ? AND season = ?"
+  ).run(sport, season);
+  return result.changes;
+}
+
 async function refreshLeagueFromFeed(league: LeagueConfig, season: number): Promise<number | null> {
   const log = getLogger();
   if (!league.feedUrl) return null;
@@ -275,6 +284,13 @@ async function refreshLeagueFromFeed(league: LeagueConfig, season: number): Prom
     if (fixtures.length === 0) {
       log.warn({ sport: league.sport, rawCount: data.length }, "Could not parse any fixtures from feed");
       return null;
+    }
+
+    // Clear old data first to avoid duplicates from team name mismatches
+    // (e.g. AI loaded "Gold Coast Suns" but feed sends "Gold Coast SUNS")
+    const deleted = clearFixturesForSport(league.sport, season);
+    if (deleted > 0) {
+      log.info({ sport: league.sport, deleted }, "Cleared old fixtures before feed load");
     }
 
     const count = upsertFixtures(fixtures);
@@ -379,6 +395,16 @@ export async function refreshRecentResults(bot: Bot): Promise<void> {
 
   for (const league of LEAGUE_CONFIGS) {
     try {
+      // For leagues with a feed, just re-fetch the full feed (it includes scores)
+      if (league.feedUrl) {
+        const feedCount = await refreshLeagueFromFeed(league, season);
+        if (feedCount !== null && feedCount > 0) {
+          log.info({ sport: league.sport, count: feedCount }, "Results updated from feed");
+          continue;
+        }
+      }
+
+      // AI fallback for F1 or if feed fails
       const prompt = buildResultsPrompt(league, season);
       const response = await chat(adminUserId, config.ADMIN_TELEGRAM_ID, prompt);
       const data = extractJSON(response);
@@ -395,7 +421,7 @@ export async function refreshRecentResults(bot: Bot): Promise<void> {
 
       if (fixtures.length > 0) {
         upsertFixtures(fixtures);
-        log.info({ sport: league.sport, count: fixtures.length }, "Results updated");
+        log.info({ sport: league.sport, count: fixtures.length }, "Results updated via AI");
       }
     } catch (err) {
       log.error({ err, sport: league.sport }, "Failed to refresh results");
