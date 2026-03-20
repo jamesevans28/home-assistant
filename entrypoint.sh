@@ -30,16 +30,24 @@ if [ -n "$GITHUB_REPO_URL" ] && [ -d ".git" ]; then
   echo "Git remote: $(git remote get-url origin 2>/dev/null | sed 's|://[^@]*@|://***@|')"
   echo "Current commit: $(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
 
-  PULL_OUTPUT=$(git pull origin main 2>&1) || true
-  echo "Git pull output: $PULL_OUTPUT"
+  # Fetch latest from remote
+  git fetch origin main 2>&1 || true
 
-  if echo "$PULL_OUTPUT" | grep -qi 'already up.to.date\|already up to date'; then
+  LOCAL_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo 'unknown')
+  REMOTE_COMMIT=$(git rev-parse origin/main 2>/dev/null || echo 'unknown')
+  echo "Local commit:  $LOCAL_COMMIT"
+  echo "Remote commit: $REMOTE_COMMIT"
+
+  if [ "$LOCAL_COMMIT" = "$REMOTE_COMMIT" ]; then
     echo "Already up to date."
-  elif echo "$PULL_OUTPUT" | grep -qi 'fatal\|error\|unable\|could not'; then
-    echo "WARNING: Git pull failed! Running with existing code."
-    echo "Error: $PULL_OUTPUT"
   else
-    echo "Code updated, will rebuild..."
+    echo "Update available, resetting to origin/main..."
+    # Reset working tree to match remote exactly — safe because source of
+    # truth is GitHub, not the NAS filesystem
+    git reset --hard origin/main 2>&1
+    git clean -fd 2>&1
+
+    echo "Updated!"
     echo "New version: $(node -p "require('./package.json').version" 2>/dev/null || echo 'unknown')"
     echo "New commit: $(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
     rm -f dist/index.js
