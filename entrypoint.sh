@@ -26,10 +26,22 @@ fi
 # Auto-update from GitHub FIRST (before anything else)
 if [ -n "$GITHUB_REPO_URL" ] && [ -d ".git" ]; then
   echo "Checking for updates..."
-  if git pull origin main 2>/dev/null | grep -q 'Already up to date'; then
+  echo "Current version: $(node -p "require('./package.json').version" 2>/dev/null || echo 'unknown')"
+  echo "Git remote: $(git remote get-url origin 2>/dev/null | sed 's|://[^@]*@|://***@|')"
+  echo "Current commit: $(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+
+  PULL_OUTPUT=$(git pull origin main 2>&1) || true
+  echo "Git pull output: $PULL_OUTPUT"
+
+  if echo "$PULL_OUTPUT" | grep -qi 'already up.to.date\|already up to date'; then
     echo "Already up to date."
+  elif echo "$PULL_OUTPUT" | grep -qi 'fatal\|error\|unable\|could not'; then
+    echo "WARNING: Git pull failed! Running with existing code."
+    echo "Error: $PULL_OUTPUT"
   else
     echo "Code updated, will rebuild..."
+    echo "New version: $(node -p "require('./package.json').version" 2>/dev/null || echo 'unknown')"
+    echo "New commit: $(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
     rm -f dist/index.js
     touch /tmp/openclaw-updated
   fi
