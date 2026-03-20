@@ -33,8 +33,9 @@ function getHtml(): string {
 
 function getVersion(): string {
   const require = createRequire(import.meta.url);
-  const pkg = require("../../package.json");
-  return pkg.version;
+  // Paths to try: bundled (dist/index.js → ../package.json) and dev (src/web/ → ../../package.json)
+  try { return require("../package.json").version; } catch {}
+  return require("../../package.json").version;
 }
 
 function checkAuth(req: IncomingMessage): boolean {
