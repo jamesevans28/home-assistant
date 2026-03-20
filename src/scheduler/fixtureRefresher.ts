@@ -38,6 +38,7 @@ const LEAGUE_CONFIGS: LeagueConfig[] = [
   },
   {
     sport: "F1",
+    feedUrl: "https://raw.githubusercontent.com/theOehrly/f1schedule/refs/heads/master/schedule_{season}.json",
     searchHints: ["formula1.com/en/racing", "motorsport.com/f1/calendar"],
     hasHomeAway: false,
     seasonMonths: [3, 12],
@@ -209,6 +210,67 @@ interface FeedEntry {
   AwayTeamScore: number | string | null;
 }
 
+/** F1 GitHub schedule feed types */
+interface F1ScheduleEntry {
+  round_number: number;
+  country: string;
+  location: string;
+  official_event_name: string;
+  event_date: string;
+  event_name: string;
+  gmt_offset: string;
+  event_format: string;
+  session1: string | null;
+  session1_date: string | null;
+  session2: string | null;
+  session2_date: string | null;
+  session3: string | null;
+  session3_date: string | null;
+  session4: string | null;
+  session4_date: string | null;
+  session5: string | null;
+  session5_date: string | null;
+  f1_api_support: boolean;
+}
+
+function parseF1Fixtures(data: Record<string, F1ScheduleEntry>, season: number): FixtureInput[] {
+  const fixtures: FixtureInput[] = [];
+
+  for (const key of Object.keys(data)) {
+    const entry = data[key];
+    if (!entry || entry.event_format === "testing") continue;
+
+    const roundLabel = entry.round_number > 0 ? `Round ${entry.round_number}` : entry.event_name;
+    const offset = entry.gmt_offset; // e.g. "+11:00"
+
+    // Add each session (Practice 1-3, Qualifying, Sprint Qualifying, Sprint, Race)
+    for (let i = 1; i <= 5; i++) {
+      const sessionName = entry[`session${i}` as keyof F1ScheduleEntry] as string | null;
+      const sessionDate = entry[`session${i}_date` as keyof F1ScheduleEntry] as string | null;
+
+      if (!sessionName || !sessionDate) continue;
+
+      const isoWithOffset = `${sessionDate}${offset}`;
+      const date = new Date(isoWithOffset);
+      if (isNaN(date.getTime())) continue;
+
+      const isCompleted = date < new Date();
+
+      fixtures.push({
+        sport: "F1",
+        season,
+        round: roundLabel,
+        event_name: `${entry.event_name} — ${sessionName}`,
+        start_time: date.toISOString(),
+        venue: `${entry.location}, ${entry.country}`,
+        status: isCompleted ? "completed" : "scheduled",
+      });
+    }
+  }
+
+  return fixtures;
+}
+
 /**
  * Maps feed team names → canonical full names.
  * Key is lowercase for case-insensitive matching.
@@ -339,17 +401,33 @@ async function refreshLeagueFromFeed(league: LeagueConfig, season: number): Prom
       return null; // Fall back to AI
     }
 
-    const data = (await response.json()) as FeedEntry[];
+    const data = await response.json();
 
-    if (!Array.isArray(data) || data.length === 0) {
-      log.warn({ sport: league.sport }, "Feed returned empty array");
-      return null;
+    let fixtures: FixtureInput[];
+
+    if (league.sport === "F1") {
+      // F1 GitHub schedule: object with numeric keys
+      if (typeof data !== "object" || data === null || Array.isArray(data)) {
+        log.warn({ sport: league.sport }, "F1 feed returned unexpected format");
+        return null;
+      }
+      const entries = Object.keys(data);
+      if (entries.length === 0) {
+        log.warn({ sport: league.sport }, "F1 feed returned empty object");
+        return null;
+      }
+      fixtures = parseF1Fixtures(data as Record<string, F1ScheduleEntry>, season);
+    } else {
+      // fixturedownload.com: array of match entries
+      if (!Array.isArray(data) || data.length === 0) {
+        log.warn({ sport: league.sport }, "Feed returned empty array");
+        return null;
+      }
+      fixtures = parseFeedFixtures(data as FeedEntry[], league, season);
     }
 
-    const fixtures = parseFeedFixtures(data, league, season);
-
     if (fixtures.length === 0) {
-      log.warn({ sport: league.sport, rawCount: data.length }, "Could not parse any fixtures from feed");
+      log.warn({ sport: league.sport }, "Could not parse any fixtures from feed");
       return null;
     }
 
