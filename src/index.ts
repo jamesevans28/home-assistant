@@ -1,6 +1,6 @@
 import { existsSync, unlinkSync } from "fs";
 import { createRequire } from "module";
-import { loadConfig } from "./config.js";
+import { loadConfig, getConfig } from "./config.js";
 import { initLogger } from "./utils/logger.js";
 import { initDatabase, closeDatabase } from "./db/database.js";
 import { createBot } from "./bot/bot.js";
@@ -8,6 +8,7 @@ import { initAgent, stopAgent } from "./ai/agent.js";
 import { startScheduler } from "./scheduler/cronRunner.js";
 import { seedDefaultAliases } from "./db/repositories/fixtureRepo.js";
 import { checkAndRefreshFixtures } from "./scheduler/fixtureRefresher.js";
+import { startDashboard } from "./web/server.js";
 
 function getVersion(): string {
   const require = createRequire(import.meta.url);
@@ -57,9 +58,13 @@ async function main() {
   seedDefaultAliases();
   await checkAndRefreshFixtures(bot);
 
+  // Dashboard web server
+  const dashboardServer = startDashboard(getConfig().DASHBOARD_PORT);
+
   // Graceful shutdown
   const shutdown = async () => {
     log.info("Shutting down...");
+    dashboardServer.close();
     await bot.stop();
     await stopAgent();
     closeDatabase();

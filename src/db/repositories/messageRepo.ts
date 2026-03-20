@@ -34,6 +34,21 @@ export function getRecentMessages(userId: number, limit = 50): Message[] {
     .all(userId, limit) as Message[];
 }
 
+export function getMessageCountsByDay(days: number): { date: string; count: number }[] {
+  const db = getDatabase();
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+  return db
+    .prepare(
+      `SELECT DATE(created_at) as date, COUNT(*) as count
+       FROM messages
+       WHERE created_at >= ?
+       GROUP BY DATE(created_at)
+       ORDER BY date`
+    )
+    .all(since.toISOString()) as { date: string; count: number }[];
+}
+
 export function pruneOldMessages(userId: number, keepCount = 200) {
   const db = getDatabase();
   db.prepare(

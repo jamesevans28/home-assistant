@@ -24,6 +24,8 @@ const envSchema = z.object({
     .transform((s) => s.split(",").map((id) => parseInt(id.trim(), 10)).filter((id) => !isNaN(id) && id > 0)),
   FIXTURE_REFRESH_CRON: z.string().default("0 4 * * 1"),
   RESULTS_REFRESH_CRON: z.string().default("0 6 * * *"),
+  DASHBOARD_PORT: z.coerce.number().default(3000),
+  DASHBOARD_TOKEN: z.string().optional(),
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace"])
     .default("info"),

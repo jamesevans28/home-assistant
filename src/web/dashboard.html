@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f172a">
+<title>Susie Dashboard</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --surface-hover: #263548;
+    --text: #f1f5f9;
+    --text-dim: #94a3b8;
+    --text-muted: #64748b;
+    --blue: #3b82f6;
+    --amber: #f59e0b;
+    --green: #22c55e;
+    --orange: #f97316;
+    --purple: #a855f7;
+    --cyan: #06b6d4;
+    --pink: #ec4899;
+    --red: #ef4444;
+    --radius: 12px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100dvh;
+    padding: 16px;
+    padding-top: max(16px, env(safe-area-inset-top));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .header h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--blue), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .header .meta {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-align: right;
+  }
+
+  /* Stats bar */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .stat {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 14px 12px;
+    text-align: center;
+  }
+
+  .stat .number {
+    font-size: 1.75rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .stat .label {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 4px;
+  }
+
+  /* Cards */
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  @media (min-width: 640px) {
+    .grid { grid-template-columns: 1fr 1fr; }
+  }
+
+  .card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 16px;
+    border-left: 4px solid var(--blue);
+  }
+
+  .card-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .card-title .icon { font-size: 1rem; }
+
+  .card.blue   { border-left-color: var(--blue); }
+  .card.amber  { border-left-color: var(--amber); }
+  .card.green  { border-left-color: var(--green); }
+  .card.orange { border-left-color: var(--orange); }
+  .card.purple { border-left-color: var(--purple); }
+  .card.cyan   { border-left-color: var(--cyan); }
+  .card.pink   { border-left-color: var(--pink); }
+  .card.red    { border-left-color: var(--red); }
+
+  .card-title .blue   { color: var(--blue); }
+  .card-title .amber  { color: var(--amber); }
+  .card-title .green  { color: var(--green); }
+  .card-title .orange { color: var(--orange); }
+  .card-title .purple { color: var(--purple); }
+  .card-title .cyan   { color: var(--cyan); }
+  .card-title .pink   { color: var(--pink); }
+  .card-title .red    { color: var(--red); }
+
+  /* List items */
+  .item {
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    font-size: 0.875rem;
+  }
+
+  .item:last-child { border-bottom: none; }
+
+  .item .primary { color: var(--text); }
+  .item .secondary { color: var(--text-dim); font-size: 0.75rem; margin-top: 2px; }
+
+  .item-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .badge.sport-afl { background: rgba(249,115,22,0.2); color: var(--orange); }
+  .badge.sport-nrl { background: rgba(34,197,94,0.2); color: var(--green); }
+  .badge.sport-f1 { background: rgba(239,68,68,0.2); color: var(--red); }
+  .badge.sport-netball { background: rgba(168,85,247,0.2); color: var(--purple); }
+
+  .empty { color: var(--text-muted); font-size: 0.8rem; font-style: italic; }
+
+  /* Chart */
+  .chart-container {
+    height: 120px;
+    position: relative;
+  }
+
+  /* Shopping item */
+  .shop-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    font-size: 0.875rem;
+  }
+
+  .shop-item:last-child { border-bottom: none; }
+
+  .shop-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    flex-shrink: 0;
+  }
+
+  .shop-meal { color: var(--text-muted); font-size: 0.75rem; }
+
+  /* Birthday countdown */
+  .bday-days {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 22px;
+    border-radius: 99px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .bday-today { background: rgba(239,68,68,0.2); color: var(--red); }
+  .bday-soon { background: rgba(249,115,22,0.2); color: var(--orange); }
+  .bday-later { background: rgba(100,116,139,0.2); color: var(--text-dim); }
+
+  /* Loading & auth */
+  .loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60dvh;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid var(--surface);
+    border-top-color: var(--blue);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .auth-box {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 32px 24px;
+    max-width: 320px;
+    margin: 20vh auto;
+    text-align: center;
+  }
+
+  .auth-box h2 { margin-bottom: 16px; font-size: 1.2rem; }
+
+  .auth-box input {
+    width: 100%;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid var(--text-muted);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 1rem;
+    text-align: center;
+    letter-spacing: 4px;
+    margin-bottom: 12px;
+  }
+
+  .auth-box button {
+    width: 100%;
+    padding: 12px;
+    border-radius: 8px;
+    border: none;
+    background: var(--blue);
+    color: white;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .auth-error { color: var(--red); font-size: 0.8rem; margin-top: 8px; }
+
+  .refresh-time {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    margin-top: 16px;
+    padding-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+
+<div id="auth" style="display:none">
+  <div class="auth-box">
+    <h2>Susie Dashboard</h2>
+    <p style="color:var(--text-dim);font-size:0.85rem;margin-bottom:16px">Enter your access token</p>
+    <input type="password" id="token-input" placeholder="Token" autocomplete="off">
+    <button onclick="submitToken()">Enter</button>
+    <div id="auth-error" class="auth-error" style="display:none"></div>
+  </div>
+</div>
+
+<div id="loading" class="loading">
+  <div class="spinner"></div>
+  <span style="color:var(--text-dim);font-size:0.85rem">Loading dashboard...</span>
+</div>
+
+<div id="dashboard" style="display:none">
+  <div class="header">
+    <h1>Susie</h1>
+    <div class="meta">
+      <div id="date-display"></div>
+      <div id="version-display"></div>
+    </div>
+  </div>
+
+  <div class="stats" id="stats-bar"></div>
+  <div class="grid" id="card-grid"></div>
+  <div class="refresh-time" id="refresh-time"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+const TOKEN_KEY = 'susie_dashboard_token';
+let currentData = null;
+
+function getToken() { return localStorage.getItem(TOKEN_KEY) || ''; }
+function setToken(t) { localStorage.setItem(TOKEN_KEY, t); }
+
+function submitToken() {
+  const val = document.getElementById('token-input').value.trim();
+  if (!val) return;
+  setToken(val);
+  document.getElementById('auth').style.display = 'none';
+  document.getElementById('loading').style.display = 'flex';
+  loadData();
+}
+
+async function loadData() {
+  const token = getToken();
+  const qs = token ? `?token=${encodeURIComponent(token)}` : '';
+  try {
+    const res = await fetch(`/api/dashboard${qs}`);
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem(TOKEN_KEY);
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('auth').style.display = 'block';
+      const err = document.getElementById('auth-error');
+      err.textContent = 'Invalid token';
+      err.style.display = 'block';
+      return;
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    currentData = await res.json();
+    render(currentData);
+  } catch (e) {
+    console.error('Failed to load dashboard:', e);
+    document.getElementById('loading').innerHTML =
+      `<span style="color:var(--red)">Failed to load. Retrying...</span>`;
+    setTimeout(loadData, 5000);
+  }
+}
+
+function render(d) {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+
+  // Header
+  const gen = new Date(d.generatedAt);
+  document.getElementById('date-display').textContent =
+    gen.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
+  document.getElementById('version-display').textContent = `v${d.version}`;
+
+  // Stats bar
+  const statsHtml = `
+    <div class="stat">
+      <div class="number" style="color:var(--blue)">${d.stats.remindersDueToday}</div>
+      <div class="label">Reminders</div>
+    </div>
+    <div class="stat">
+      <div class="number" style="color:var(--amber)">${d.stats.tasksDueSoon}</div>
+      <div class="label">Tasks Due</div>
+    </div>
+    <div class="stat">
+      <div class="number" style="color:var(--green)">${d.stats.shoppingCount}</div>
+      <div class="label">Shopping</div>
+    </div>`;
+  document.getElementById('stats-bar').innerHTML = statsHtml;
+
+  // Build cards
+  const cards = [];
+
+  // Reminders
+  if (d.remindersToday.length > 0) {
+    cards.push(card('blue', 'Reminders Today', d.remindersToday.map(r =>
+      `<div class="item"><div class="item-row"><span class="primary">${esc(r.title)}</span><span class="secondary">${esc(r.dueAt)}</span></div>${r.familyMember ? `<div class="secondary">${esc(r.familyMember)}</div>` : ''}</div>`
+    ).join('')));
+  }
+
+  // Tasks
+  if (d.tasksDueSoon.length > 0) {
+    cards.push(card('amber', 'Tasks Due Soon', d.tasksDueSoon.map(t =>
+      `<div class="item"><div class="item-row"><span class="primary">${esc(t.title)}</span><span class="secondary">${esc(t.dueAt)}</span></div>${t.familyMember ? `<div class="secondary">${esc(t.familyMember)}</div>` : ''}</div>`
+    ).join('')));
+  }
+
+  // Next games
+  if (d.nextGames.length > 0) {
+    cards.push(card('orange', 'Teams Playing Today', d.nextGames.map(g => {
+      const badge = sportBadge(g.sport);
+      const teams = g.eventName || `${g.homeTeam || '?'} vs ${g.awayTeam || '?'}`;
+      return `<div class="item">
+        <div class="item-row"><span class="primary">${badge} ${esc(teams)}</span><span class="secondary">${esc(g.startTime)}</span></div>
+        <div class="secondary">${esc(g.venue || '')}${g.followers.length ? ' &middot; ' + esc(g.followers.join(', ')) : ''}</div>
+      </div>`;
+    }).join('')));
+  }
+
+  // Recent results
+  if (d.recentResults.length > 0) {
+    cards.push(card('orange', 'Recent Results', d.recentResults.map(r => {
+      const badge = sportBadge(r.sport);
+      const teams = r.eventName || `${r.homeTeam || '?'} vs ${r.awayTeam || '?'}`;
+      const score = r.homeScore && r.awayScore ? `${r.homeScore} - ${r.awayScore}` : (r.resultSummary || '');
+      return `<div class="item"><div class="item-row"><span class="primary">${badge} ${esc(teams)}</span><span class="secondary">${esc(score)}</span></div>${r.resultSummary && r.homeScore ? `<div class="secondary">${esc(r.resultSummary)}</div>` : ''}</div>`;
+    }).join('')));
+  }
+
+  // School news
+  if (d.schoolNews.length > 0) {
+    cards.push(card('purple', 'School News', d.schoolNews.map(e =>
+      `<div class="item"><div class="primary">${esc(e.subject)}</div><div class="secondary">${esc(e.receivedAt)}${e.summary ? ' &middot; ' + esc(e.summary.slice(0, 100)) : ''}</div></div>`
+    ).join('')));
+  }
+
+  // Usage chart
+  cards.push(card('cyan', 'Chat Activity (7 days)',
+    '<div class="chart-container"><canvas id="usage-chart"></canvas></div>', 'usage'));
+
+  // Shopping list
+  if (d.shoppingList.length > 0) {
+    cards.push(card('green', 'Shopping List', d.shoppingList.map(i =>
+      `<div class="shop-item"><span class="shop-dot"></span><span>${esc(i.item)}${i.mealRef ? ` <span class="shop-meal">(${esc(i.mealRef)})</span>` : ''}</span></div>`
+    ).join('')));
+  }
+
+  // Meals this week
+  if (d.mealsThisWeek.length > 0) {
+    cards.push(card('pink', 'Meals This Week', d.mealsThisWeek.map(m =>
+      `<div class="item"><div class="item-row"><span class="primary">${esc(m.name)}</span><span class="secondary">${esc(m.cookedAt)}</span></div></div>`
+    ).join('')));
+  }
+
+  // Upcoming events
+  if (d.upcomingEvents.length > 0) {
+    cards.push(card('blue', 'Upcoming Events', d.upcomingEvents.map(e =>
+      `<div class="item"><div class="item-row"><span class="primary">${esc(e.title)}</span><span class="secondary">${esc(e.startAt)}</span></div>${e.location ? `<div class="secondary">${esc(e.location)}</div>` : ''}</div>`
+    ).join('')));
+  }
+
+  // Birthdays
+  if (d.upcomingBirthdays.length > 0) {
+    cards.push(card('red', 'Upcoming Birthdays', d.upcomingBirthdays.map(b => {
+      const cls = b.daysUntil === 0 ? 'bday-today' : b.daysUntil <= 7 ? 'bday-soon' : 'bday-later';
+      const label = b.daysUntil === 0 ? 'TODAY' : b.daysUntil === 1 ? 'TMR' : `${b.daysUntil}d`;
+      return `<div class="item"><div class="item-row"><span class="primary">${esc(b.name)}${b.turningAge ? ` <span class="secondary">(turning ${b.turningAge})</span>` : ''}</span><span class="bday-days ${cls}">${label}</span></div></div>`;
+    }).join('')));
+  }
+
+  document.getElementById('card-grid').innerHTML = cards.join('');
+
+  // Render chart after DOM update
+  requestAnimationFrame(() => renderChart(d.usageByDay));
+
+  // Refresh time
+  document.getElementById('refresh-time').textContent =
+    `Last updated ${gen.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}`;
+}
+
+function card(color, title, content, id) {
+  const icons = {
+    blue: '', amber: '', green: '', orange: '',
+    purple: '', cyan: '', pink: '', red: ''
+  };
+  return `<div class="card ${color}"${id ? ` id="card-${id}"` : ''}>
+    <div class="card-title"><span class="${color}">${esc(title)}</span></div>
+    ${content || '<div class="empty">Nothing to show</div>'}
+  </div>`;
+}
+
+function sportBadge(sport) {
+  const s = sport.toLowerCase();
+  const cls = s === 'afl' ? 'sport-afl' : s === 'nrl' ? 'sport-nrl' :
+    s === 'f1' ? 'sport-f1' : 'sport-netball';
+  return `<span class="badge ${cls}">${esc(sport)}</span>`;
+}
+
+function esc(str) {
+  if (!str) return '';
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function renderChart(data) {
+  const canvas = document.getElementById('usage-chart');
+  if (!canvas) return;
+
+  // Fill missing days
+  const days = [];
+  const counts = [];
+  const dataMap = new Map(data.map(d => [d.date, d.count]));
+
+  for (let i = 6; i >= 0; i--) {
+    const dt = new Date();
+    dt.setDate(dt.getDate() - i);
+    const key = dt.toISOString().slice(0, 10);
+    const label = dt.toLocaleDateString('en-AU', { weekday: 'short' });
+    days.push(label);
+    counts.push(dataMap.get(key) || 0);
+  }
+
+  new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: days,
+      datasets: [{
+        data: counts,
+        backgroundColor: 'rgba(6, 182, 212, 0.4)',
+        borderColor: 'rgba(6, 182, 212, 0.8)',
+        borderWidth: 1,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: {
+          ticks: { color: '#64748b', font: { size: 10 } },
+          grid: { display: false },
+          border: { display: false }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: { color: '#64748b', font: { size: 10 }, stepSize: 1 },
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          border: { display: false }
+        }
+      }
+    }
+  });
+}
+
+// Boot
+(function init() {
+  loadData();
+  // Auto-refresh every 5 minutes
+  setInterval(loadData, 5 * 60 * 1000);
+})();
+</script>
+</body>
+</html>
