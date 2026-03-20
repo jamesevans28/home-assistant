@@ -19,9 +19,16 @@ import { getLogger } from "../utils/logger.js";
 
 function getVersion(): string {
   const require = createRequire(import.meta.url);
-  // Paths to try: bundled (dist/index.js → ../package.json) and dev (src/web/ → ../../package.json)
-  try { return require("../package.json").version; } catch {}
-  return require("../../package.json").version;
+  const { resolve } = require("path");
+  const paths = [
+    resolve(process.cwd(), "package.json"),
+    "../package.json",
+    "../../package.json",
+  ];
+  for (const p of paths) {
+    try { return require(p).version; } catch {}
+  }
+  return "unknown";
 }
 
 function getAdminUserId(): number {

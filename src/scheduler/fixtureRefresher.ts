@@ -13,6 +13,8 @@ import {
 
 interface LeagueConfig {
   sport: string;
+  /** Direct JSON feed URL template — {season} replaced at runtime */
+  feedUrl?: string;
   searchHints: string[];
   hasHomeAway: boolean;
   /** Months the season spans (inclusive) */
@@ -22,12 +24,14 @@ interface LeagueConfig {
 const LEAGUE_CONFIGS: LeagueConfig[] = [
   {
     sport: "AFL",
+    feedUrl: "https://fixturedownload.com/feed/json/afl-{season}",
     searchHints: ["afl.com.au/fixture", "foxsports.com.au/afl/fixtures"],
     hasHomeAway: true,
     seasonMonths: [3, 9],
   },
   {
     sport: "NRL",
+    feedUrl: "https://fixturedownload.com/feed/json/nrl-{season}",
     searchHints: ["nrl.com/draw", "foxsports.com.au/nrl/fixtures"],
     hasHomeAway: true,
     seasonMonths: [3, 10],
@@ -40,6 +44,7 @@ const LEAGUE_CONFIGS: LeagueConfig[] = [
   },
   {
     sport: "Super Netball",
+    feedUrl: "https://fixturedownload.com/feed/json/super-netball-{season}",
     searchHints: ["supernetball.com.au/fixture", "foxsports.com.au/netball"],
     hasHomeAway: true,
     seasonMonths: [4, 8],
@@ -191,12 +196,104 @@ function parseFixtures(
   return fixtures;
 }
 
-async function refreshLeague(league: LeagueConfig, season: number): Promise<number> {
+/** Feed entry from fixturedownload.com */
+interface FeedEntry {
+  MatchNumber: number;
+  RoundNumber: number;
+  DateUtc: string;
+  Location: string | null;
+  HomeTeam: string;
+  AwayTeam: string;
+  Group: string | null;
+  HomeTeamScore: number | string | null;
+  AwayTeamScore: number | string | null;
+}
+
+function parseFeedFixtures(data: FeedEntry[], league: LeagueConfig, season: number): FixtureInput[] {
+  const fixtures: FixtureInput[] = [];
+
+  for (const entry of data) {
+    if (!entry.DateUtc) continue;
+
+    const date = new Date(entry.DateUtc.endsWith("Z") ? entry.DateUtc : entry.DateUtc + "Z");
+    if (isNaN(date.getTime())) continue;
+
+    const hasScores =
+      entry.HomeTeamScore != null && entry.AwayTeamScore != null &&
+      entry.HomeTeamScore !== "" && entry.AwayTeamScore !== "" &&
+      String(entry.HomeTeamScore) !== "null";
+
+    const isCompleted = hasScores && date < new Date();
+
+    fixtures.push({
+      sport: league.sport,
+      season,
+      round: entry.RoundNumber != null ? `Round ${entry.RoundNumber}` : null,
+      home_team: entry.HomeTeam ?? null,
+      away_team: entry.AwayTeam ?? null,
+      start_time: date.toISOString(),
+      venue: entry.Location ?? null,
+      status: isCompleted ? "completed" : "scheduled",
+      home_score: hasScores ? String(entry.HomeTeamScore) : undefined,
+      away_score: hasScores ? String(entry.AwayTeamScore) : undefined,
+      result_summary: isCompleted
+        ? `${entry.HomeTeam} ${entry.HomeTeamScore} - ${entry.AwayTeamScore} ${entry.AwayTeam}`
+        : undefined,
+    });
+  }
+
+  return fixtures;
+}
+
+async function refreshLeagueFromFeed(league: LeagueConfig, season: number): Promise<number | null> {
+  const log = getLogger();
+  if (!league.feedUrl) return null;
+
+  const url = league.feedUrl.replace("{season}", String(season));
+  log.info({ sport: league.sport, url }, "Fetching fixtures from JSON feed");
+
+  try {
+    const response = await fetch(url, {
+      headers: { "User-Agent": "OpenClaw-HomeAssistant/1.0" },
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!response.ok) {
+      log.warn({ sport: league.sport, status: response.status }, "Feed returned non-OK status");
+      return null; // Fall back to AI
+    }
+
+    const data = (await response.json()) as FeedEntry[];
+
+    if (!Array.isArray(data) || data.length === 0) {
+      log.warn({ sport: league.sport }, "Feed returned empty array");
+      return null;
+    }
+
+    const fixtures = parseFeedFixtures(data, league, season);
+
+    if (fixtures.length === 0) {
+      log.warn({ sport: league.sport, rawCount: data.length }, "Could not parse any fixtures from feed");
+      return null;
+    }
+
+    const count = upsertFixtures(fixtures);
+    updateRefreshLog(league.sport, season, count, "success", `Direct feed: ${url}`);
+
+    log.info({ sport: league.sport, count }, "Fixtures loaded from JSON feed");
+    return count;
+  } catch (err) {
+    log.warn({ err, sport: league.sport }, "Feed fetch failed, will try AI fallback");
+    return null;
+  }
+}
+
+async function refreshLeagueFromAI(league: LeagueConfig, season: number): Promise<number> {
   const log = getLogger();
   const config = getConfig();
   const adminUserId = getAdminUserId();
 
-  log.info({ sport: league.sport, season }, "Refreshing fixtures");
+  log.info({ sport: league.sport, season }, "Refreshing fixtures via AI");
 
   const prompt = buildFixturePrompt(league, season);
 
@@ -205,10 +302,7 @@ async function refreshLeague(league: LeagueConfig, season: number): Promise<numb
     const data = extractJSON(response);
 
     if (!data || data.length === 0) {
-      log.warn(
-        { sport: league.sport },
-        "No fixture data returned from AI"
-      );
+      log.warn({ sport: league.sport }, "No fixture data returned from AI");
       updateRefreshLog(league.sport, season, 0, "failed", "No data returned");
       return 0;
     }
@@ -216,29 +310,31 @@ async function refreshLeague(league: LeagueConfig, season: number): Promise<numb
     const fixtures = parseFixtures(data, league, season);
 
     if (fixtures.length === 0) {
-      log.warn(
-        { sport: league.sport, rawCount: data.length },
-        "Could not parse any fixtures from AI response"
-      );
+      log.warn({ sport: league.sport, rawCount: data.length }, "Could not parse any fixtures from AI response");
       updateRefreshLog(league.sport, season, 0, "failed", "Parse error");
       return 0;
     }
 
     const count = upsertFixtures(fixtures);
     const status = fixtures.length < 10 ? "partial" : "success";
-    updateRefreshLog(league.sport, season, count, status);
+    updateRefreshLog(league.sport, season, count, status, "AI web search");
 
-    log.info(
-      { sport: league.sport, count, status },
-      "Fixtures refreshed"
-    );
-
+    log.info({ sport: league.sport, count, status }, "Fixtures refreshed via AI");
     return count;
   } catch (err) {
-    log.error({ err, sport: league.sport }, "Failed to refresh fixtures");
+    log.error({ err, sport: league.sport }, "Failed to refresh fixtures via AI");
     updateRefreshLog(league.sport, season, 0, "failed", String(err));
     return 0;
   }
+}
+
+async function refreshLeague(league: LeagueConfig, season: number): Promise<number> {
+  // Try direct JSON feed first (fast, reliable)
+  const feedCount = await refreshLeagueFromFeed(league, season);
+  if (feedCount !== null && feedCount > 0) return feedCount;
+
+  // Fall back to AI web search (for F1 or if feed fails)
+  return refreshLeagueFromAI(league, season);
 }
 
 export async function refreshAllFixtures(bot: Bot): Promise<void> {
