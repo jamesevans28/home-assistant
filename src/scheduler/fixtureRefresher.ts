@@ -209,6 +209,70 @@ interface FeedEntry {
   AwayTeamScore: number | string | null;
 }
 
+/**
+ * Maps feed team names → canonical full names.
+ * Key is lowercase for case-insensitive matching.
+ */
+const FEED_TEAM_NAMES: Record<string, Record<string, string>> = {
+  AFL: {
+    "richmond": "Richmond Tigers",
+    "carlton": "Carlton Blues",
+    "collingwood": "Collingwood Magpies",
+    "essendon": "Essendon Bombers",
+    "hawthorn": "Hawthorn Hawks",
+    "melbourne": "Melbourne Demons",
+    "north melbourne": "North Melbourne Kangaroos",
+    "port adelaide": "Port Adelaide Power",
+    "fremantle": "Fremantle Dockers",
+    "sydney swans": "Sydney Swans",
+    "brisbane lions": "Brisbane Lions",
+    "adelaide crows": "Adelaide Crows",
+    "geelong cats": "Geelong Cats",
+    "gold coast suns": "Gold Coast Suns",
+    "gws giants": "GWS Giants",
+    "western bulldogs": "Western Bulldogs",
+    "west coast eagles": "West Coast Eagles",
+    "st kilda": "St Kilda Saints",
+  },
+  NRL: {
+    "knights": "Newcastle Knights",
+    "cowboys": "North Queensland Cowboys",
+    "bulldogs": "Canterbury Bulldogs",
+    "dragons": "St George Illawarra Dragons",
+    "storm": "Melbourne Storm",
+    "eels": "Parramatta Eels",
+    "warriors": "New Zealand Warriors",
+    "roosters": "Sydney Roosters",
+    "broncos": "Brisbane Broncos",
+    "panthers": "Penrith Panthers",
+    "sharks": "Cronulla Sharks",
+    "titans": "Gold Coast Titans",
+    "sea eagles": "Manly Sea Eagles",
+    "raiders": "Canberra Raiders",
+    "dolphins": "Dolphins",
+    "rabbitohs": "South Sydney Rabbitohs",
+    "wests tigers": "Wests Tigers",
+  },
+  "Super Netball": {
+    "mavericks": "Melbourne Mavericks",
+    "thunderbirds": "Adelaide Thunderbirds",
+    "firebirds": "Queensland Firebirds",
+    "fever": "West Coast Fever",
+    "lightning": "Sunshine Coast Lightning",
+    "giants": "Giants Netball",
+    "swifts": "NSW Swifts",
+    "vixens": "Melbourne Vixens",
+  },
+};
+
+function normaliseFeedTeamName(name: string, sport: string): string {
+  const sportMap = FEED_TEAM_NAMES[sport];
+  if (!sportMap) return name;
+
+  const canonical = sportMap[name.toLowerCase()];
+  return canonical ?? name;
+}
+
 function parseFeedFixtures(data: FeedEntry[], league: LeagueConfig, season: number): FixtureInput[] {
   const fixtures: FixtureInput[] = [];
 
@@ -225,19 +289,22 @@ function parseFeedFixtures(data: FeedEntry[], league: LeagueConfig, season: numb
 
     const isCompleted = hasScores && date < new Date();
 
+    const homeTeam = normaliseFeedTeamName(entry.HomeTeam, league.sport);
+    const awayTeam = normaliseFeedTeamName(entry.AwayTeam, league.sport);
+
     fixtures.push({
       sport: league.sport,
       season,
       round: entry.RoundNumber != null ? `Round ${entry.RoundNumber}` : null,
-      home_team: entry.HomeTeam ?? null,
-      away_team: entry.AwayTeam ?? null,
+      home_team: homeTeam,
+      away_team: awayTeam,
       start_time: date.toISOString(),
       venue: entry.Location ?? null,
       status: isCompleted ? "completed" : "scheduled",
       home_score: hasScores ? String(entry.HomeTeamScore) : undefined,
       away_score: hasScores ? String(entry.AwayTeamScore) : undefined,
       result_summary: isCompleted
-        ? `${entry.HomeTeam} ${entry.HomeTeamScore} - ${entry.AwayTeamScore} ${entry.AwayTeam}`
+        ? `${homeTeam} ${entry.HomeTeamScore} - ${entry.AwayTeamScore} ${awayTeam}`
         : undefined,
     });
   }

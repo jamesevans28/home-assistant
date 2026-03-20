@@ -337,12 +337,6 @@ export function upsertTeamAlias(
 
 export function seedDefaultAliases(): void {
   const db = getDatabase();
-  const count = db
-    .prepare("SELECT COUNT(*) as c FROM team_aliases")
-    .get() as { c: number };
-
-  // Only seed if empty
-  if (count.c > 0) return;
 
   const aliases: Array<[string, string, string]> = [
     // AFL
@@ -458,6 +452,8 @@ export function seedDefaultAliases(): void {
     // Super Netball
     ["vixens", "Melbourne Vixens", "Super Netball"],
     ["melbourne vixens", "Melbourne Vixens", "Super Netball"],
+    ["mavericks", "Melbourne Mavericks", "Super Netball"],
+    ["melbourne mavericks", "Melbourne Mavericks", "Super Netball"],
     ["fever", "West Coast Fever", "Super Netball"],
     ["west coast fever", "West Coast Fever", "Super Netball"],
     ["swifts", "NSW Swifts", "Super Netball"],
@@ -474,7 +470,9 @@ export function seedDefaultAliases(): void {
   ];
 
   const stmt = db.prepare(
-    "INSERT OR IGNORE INTO team_aliases (alias, canonical_name, sport) VALUES (?, ?, ?)"
+    `INSERT INTO team_aliases (alias, canonical_name, sport)
+     VALUES (?, ?, ?)
+     ON CONFLICT(alias) DO UPDATE SET canonical_name = excluded.canonical_name, sport = excluded.sport`
   );
 
   const transaction = db.transaction(() => {
