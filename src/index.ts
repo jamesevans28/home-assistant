@@ -10,6 +10,24 @@ import { seedDefaultAliases } from "./db/repositories/fixtureRepo.js";
 import { checkAndRefreshFixtures } from "./scheduler/fixtureRefresher.js";
 import { startDashboard } from "./web/server.js";
 
+/** Send a message to admin via Telegram HTTP API (works before bot is started) */
+async function notifyAdmin(text: string): Promise<void> {
+  try {
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    const chatId = process.env.ADMIN_TELEGRAM_ID;
+    if (!token || !chatId) return;
+
+    const url = `https://api.telegram.org/bot${token}/sendMessage`;
+    await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: Number(chatId), text }),
+    });
+  } catch {
+    // Best-effort — don't throw if notification itself fails
+  }
+}
+
 function getVersion(): string {
   const require = createRequire(import.meta.url);
   const pkg = require("../package.json");
@@ -87,7 +105,22 @@ async function main() {
     });
 }
 
-main().catch((err) => {
+// Global handlers for uncaught errors — notify admin before crashing
+process.on("uncaughtException", async (err) => {
+  console.error("Uncaught exception:", err);
+  await notifyAdmin(`🔴 Susie crashed (uncaught exception):\n${err.message}`);
+  process.exit(1);
+});
+
+process.on("unhandledRejection", async (reason) => {
+  const msg = reason instanceof Error ? reason.message : String(reason);
+  console.error("Unhandled rejection:", reason);
+  await notifyAdmin(`🔴 Susie unhandled rejection:\n${msg}`);
+});
+
+main().catch(async (err) => {
   console.error("Fatal error:", err);
+  const msg = err instanceof Error ? err.message : String(err);
+  await notifyAdmin(`🔴 Susie failed to start:\n${msg}`);
   process.exit(1);
 });

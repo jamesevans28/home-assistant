@@ -1,6 +1,16 @@
 #!/bin/sh
 set -e
 
+# Send an error message to the admin via Telegram (best-effort)
+notify_error() {
+  if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$ADMIN_TELEGRAM_ID" ]; then
+    curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+      --data-urlencode "chat_id=${ADMIN_TELEGRAM_ID}" \
+      --data-urlencode "text=$1" \
+      >/dev/null 2>&1 || true
+  fi
+}
+
 # Remove any stale update flag
 rm -f /tmp/openclaw-updated
 
@@ -31,7 +41,11 @@ if [ -n "$GITHUB_REPO_URL" ] && [ -d ".git" ]; then
   echo "Current commit: $(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
 
   # Fetch latest from remote
-  git fetch origin main 2>&1 || true
+  FETCH_OUTPUT=$(git fetch origin main 2>&1) || {
+    echo "WARNING: git fetch failed: $FETCH_OUTPUT"
+    notify_error "⚠️ Susie startup: git fetch failed
+$FETCH_OUTPUT"
+  }
 
   LOCAL_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo 'unknown')
   REMOTE_COMMIT=$(git rev-parse origin/main 2>/dev/null || echo 'unknown')
@@ -42,9 +56,11 @@ if [ -n "$GITHUB_REPO_URL" ] && [ -d ".git" ]; then
     echo "Already up to date."
   else
     echo "Update available, resetting to origin/main..."
-    # Reset working tree to match remote exactly — safe because source of
-    # truth is GitHub, not the NAS filesystem
-    git reset --hard origin/main 2>&1
+    RESET_OUTPUT=$(git reset --hard origin/main 2>&1) || {
+      echo "WARNING: git reset failed: $RESET_OUTPUT"
+      notify_error "⚠️ Susie startup: git reset --hard failed
+$RESET_OUTPUT"
+    }
     git clean -fd 2>&1
 
     echo "Updated!"
@@ -66,13 +82,21 @@ fi
 # Ensure node_modules exist (first run or after wiping)
 if [ ! -d "node_modules" ] || [ ! -d "node_modules/grammy" ]; then
   echo "Installing dependencies..."
-  npm install
+  if ! npm install 2>&1; then
+    notify_error "⚠️ Susie startup: npm install failed — check Docker logs"
+    echo "ERROR: npm install failed"
+    exit 1
+  fi
 fi
 
 # Build if needed (first run, after update, or after wipe)
 if [ ! -f "dist/index.js" ]; then
   echo "Building..."
-  npm run build
+  if ! npm run build 2>&1; then
+    notify_error "⚠️ Susie startup: npm run build failed — check Docker logs"
+    echo "ERROR: npm run build failed"
+    exit 1
+  fi
 fi
 
 echo "Starting OpenClaw..."

@@ -30,7 +30,13 @@ export async function updateCommand(ctx: CommandContext<Context>) {
 
     const cmds = ["git config --global http.sslVerify false"];
     if (authUrl) cmds.push(`git remote set-url origin '${authUrl}'`);
-    cmds.push("git pull origin main", "npm install", "npm run build");
+    cmds.push(
+      "git fetch origin main",
+      "git reset --hard origin/main",
+      "git clean -fd",
+      "npm install",
+      "npm run build",
+    );
 
     const { stdout, stderr } = await execAsync(
       cmds.join(" && "),
