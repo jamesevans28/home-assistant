@@ -254,7 +254,7 @@ export async function sendMorningDigest(bot: Bot) {
         .join("\n")
     : null;
 
-  const recentResultsList = getRecentResults(undefined, 3);
+  const recentResultsList = getRecentResults(undefined, 1);
   const recentResultsContext = recentResultsList.length > 0
     ? recentResultsList
         .map((f) => `- [${f.sport}] ${formatFixture(f, timezone)}`)
@@ -284,7 +284,7 @@ export async function sendMorningDigest(bot: Bot) {
   }
 
   if (recentResultsContext) {
-    sections.push(`RECENT RESULTS (last 3 days — REAL data from our database):\n${recentResultsContext}`);
+    sections.push(`RECENT RESULTS (last 24 hours — REAL data from our database):\n${recentResultsContext}`);
   }
 
   if (familyContext) sections.push(`FAMILY: ${familyContext}`);
